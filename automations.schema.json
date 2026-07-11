@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "AutomationConfig": {
+      "additionalProperties": false,
+      "description": "Define one Cloud automation.",
+      "properties": {
+        "attempts": {
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScheduleConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "skills": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Skills",
+          "type": "array"
+        }
+      },
+      "required": [
+        "prompt"
+      ],
+      "title": "AutomationConfig",
+      "type": "object"
+    },
+    "RepositoryConfig": {
+      "additionalProperties": false,
+      "description": "Group automations for one repository and Cloud environment.",
+      "properties": {
+        "automations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AutomationConfig"
+          },
+          "minProperties": 1,
+          "title": "Automations",
+          "type": "object"
+        },
+        "branch": {
+          "default": "main",
+          "title": "Branch",
+          "type": "string"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Environment"
+        }
+      },
+      "required": [
+        "automations"
+      ],
+      "title": "RepositoryConfig",
+      "type": "object"
+    },
+    "ScheduleConfig": {
+      "additionalProperties": false,
+      "description": "Define a timezone-aware POSIX cron schedule.",
+      "properties": {
+        "cron": {
+          "title": "Cron",
+          "type": "string"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cron",
+        "timezone"
+      ],
+      "title": "ScheduleConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Define the complete automation configuration.",
+  "properties": {
+    "repositories": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RepositoryConfig"
+      },
+      "minProperties": 1,
+      "title": "Repositories",
+      "type": "object"
+    },
+    "version": {
+      "const": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "repositories"
+  ],
+  "title": "AutomationsConfig",
+  "type": "object"
+}

@@ -1,0 +1,93 @@
+name: Dispatch
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      automation:
+        description: Globally unique automation name
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.repository }}-automation-dispatcher
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "22"
+      - run: uv sync --locked --python 3.13 --no-editable
+      - run: uv run --no-sync cloud-automations validate
+      - run: npm install --global @openai/codex@0.144.1
+      - name: Load state
+        if: github.event_name == 'schedule'
+        run: |
+          state_ref="$(git ls-remote --heads origin automation-state)"
+          if [ -n "$state_ref" ]; then
+            git fetch origin automation-state:refs/remotes/origin/automation-state
+            git show origin/automation-state:state.json > "$RUNNER_TEMP/state.json"
+          else
+            printf '{"version":1,"successful":{}}\n' > "$RUNNER_TEMP/state.json"
+          fi
+      - name: Materialize Codex authentication
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        run: |
+          test -n "$CODEX_AUTH_JSON"
+          codex_home="$RUNNER_TEMP/codex-home"
+          install -d -m 700 "$codex_home"
+          printf '%s' "$CODEX_AUTH_JSON" > "$codex_home/auth.json"
+          chmod 600 "$codex_home/auth.json"
+          printf 'CODEX_HOME=%s\n' "$codex_home" >> "$GITHUB_ENV"
+      - name: Submit tasks
+        id: submit
+        continue-on-error: true
+        env:
+          AUTOMATION: ${{ inputs.automation }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            uv run --no-sync cloud-automations dispatch --automation "$AUTOMATION"
+          else
+            uv run --no-sync cloud-automations dispatch --scheduled --state "$RUNNER_TEMP/state.json"
+          fi
+      - name: Remove Codex authentication
+        if: always()
+        run: rm -rf "${CODEX_HOME:-$RUNNER_TEMP/codex-home}"
+      - name: Persist state
+        if: always() && github.event_name == 'schedule'
+        run: |
+          state_directory="$RUNNER_TEMP/automation-state"
+          if git show-ref --verify --quiet refs/remotes/origin/automation-state; then
+            git worktree add -B automation-state "$state_directory" origin/automation-state
+          else
+            git worktree add --detach "$state_directory"
+            git -C "$state_directory" checkout --orphan automation-state
+            git -C "$state_directory" rm -rf .
+          fi
+          cp "$RUNNER_TEMP/state.json" "$state_directory/state.json"
+          git -C "$state_directory" add state.json
+          if git -C "$state_directory" diff --cached --quiet; then
+            exit 0
+          fi
+          git -C "$state_directory" config user.name github-actions[bot]
+          git -C "$state_directory" config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C "$state_directory" commit -m "Update automation state"
+          git -C "$state_directory" push origin HEAD:automation-state
+      - name: Check submissions
+        if: steps.submit.outcome == 'failure'
+        run: exit 1

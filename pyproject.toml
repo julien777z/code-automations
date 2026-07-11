@@ -1,0 +1,40 @@
+[project]
+name = "cloud-automations"
+version = "0.1.0"
+description = "Schedule reusable Codex Cloud automations from GitHub Actions."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { file = "LICENSE" }
+dependencies = [
+    "croniter>=6.0.0,<7",
+    "pydantic>=2.11.0,<3",
+    "pydantic-settings>=2.10.0,<3",
+    "pyyaml>=6.0.2,<7",
+    "tzdata>=2025.2",
+]
+
+[project.scripts]
+cloud-automations = "cloud_automations.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0,<9",
+    "ruff>=0.12.0,<0.13",
+]
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
