@@ -6,7 +6,7 @@ Run reusable Codex Cloud prompts from GitHub Actions.
 
 1. Create a Codex Cloud environment whose label matches each `owner/repository`, or set an explicit
    `environment` in `automations.yaml`.
-2. Install `uv` and Python 3.13 for local validation.
+2. Install Poetry and Python 3.13 for local validation.
 3. Add the local Codex authentication document as an Actions secret:
 
    ```shell
@@ -36,7 +36,7 @@ runs; automations without a schedule remain manual-only.
 ## Usage
 
 ```shell
-uv sync --locked --python 3.13 --no-editable
-uv run --no-sync cloud-automations validate
+poetry install
+poetry run cloud-automations validate
 gh workflow run dispatch.yml -f automation=hello-world
 ```

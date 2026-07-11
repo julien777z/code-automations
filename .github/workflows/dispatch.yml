@@ -21,18 +21,16 @@ jobs:
   dispatch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: ./.github/actions/setup-env
         with:
-          python-version: "3.13"
-      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+          post_setup_command: poetry install
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: uv sync --locked --python 3.13 --no-editable
-      - run: uv run --no-sync cloud-automations validate
+      - run: poetry run cloud-automations validate
       - run: npm install --global @openai/codex@0.144.1
       - name: Load state
         if: github.event_name == 'schedule'
@@ -61,9 +59,9 @@ jobs:
           AUTOMATION: ${{ inputs.automation }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            uv run --no-sync cloud-automations dispatch --automation "$AUTOMATION"
+            poetry run cloud-automations dispatch --automation "$AUTOMATION"
           else
-            uv run --no-sync cloud-automations dispatch --scheduled --state "$RUNNER_TEMP/state.json"
+            poetry run cloud-automations dispatch --scheduled --state "$RUNNER_TEMP/state.json"
           fi
       - name: Remove Codex authentication
         if: always()

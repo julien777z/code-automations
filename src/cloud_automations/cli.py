@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Literal
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from cloud_automations.configuration import (
     find_target,
@@ -15,7 +15,6 @@ from cloud_automations.configuration import (
 )
 from cloud_automations.dispatching import SubmittedAutomation, dispatch_due, dispatch_target
 from cloud_automations.errors import ConfigurationError, DispatchError
-from cloud_automations.models import StrictModel
 from cloud_automations.rendering import render_target
 from cloud_automations.runtime import GitHubRuntime
 from cloud_automations.scheduling import DueAutomation, due_automations
@@ -24,8 +23,10 @@ from cloud_automations.state import load_state
 __all__: Final[tuple[str, ...]] = ("main",)
 
 
-class DueRecord(StrictModel):
+class DueRecord(BaseModel):
     """Serialize one due automation."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     automation: str
     repository: str
@@ -34,8 +35,10 @@ class DueRecord(StrictModel):
     scheduled_for: datetime
 
 
-class CliArguments(StrictModel):
+class CliArguments(BaseModel):
     """Define typed command-line arguments."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     config: Path
     command: Literal["validate", "render", "due", "dispatch"]

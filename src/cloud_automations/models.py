@@ -14,7 +14,6 @@ __all__: Final[tuple[str, ...]] = (
     "REPOSITORY_PATTERN",
     "RepositoryConfig",
     "ScheduleConfig",
-    "StrictModel",
     "validate_branch",
     "validate_cron_field",
     "validate_reference",
@@ -24,12 +23,6 @@ REPOSITORY_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(?![A-Za-z0-9-]*--)[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[A-Za-z0-9._-]{1,100}$"
 )
 AUTOMATION_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-
-
-class StrictModel(BaseModel):
-    """Forbid coercion and unknown configuration fields."""
-
-    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 def validate_reference(value: str) -> str:
@@ -87,8 +80,10 @@ def validate_cron_field(value: str, minimum: int, maximum: int) -> bool:
     return True
 
 
-class ScheduleConfig(StrictModel):
+class ScheduleConfig(BaseModel):
     """Define a timezone-aware POSIX cron schedule."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     cron: str
     timezone: str
@@ -121,8 +116,10 @@ class ScheduleConfig(StrictModel):
         return value
 
 
-class AutomationConfig(StrictModel):
+class AutomationConfig(BaseModel):
     """Define one Cloud automation."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     prompt: str
     skills: list[str] = Field(default_factory=list)
@@ -143,8 +140,10 @@ class AutomationConfig(StrictModel):
         return [validate_reference(reference) for reference in value]
 
 
-class RepositoryConfig(StrictModel):
+class RepositoryConfig(BaseModel):
     """Group automations for one repository and Cloud environment."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     environment: str | None = Field(default=None, min_length=1, max_length=64)
     branch: str = "main"
@@ -174,8 +173,10 @@ class RepositoryConfig(StrictModel):
         return value
 
 
-class AutomationsConfig(StrictModel):
+class AutomationsConfig(BaseModel):
     """Define the complete automation configuration."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     version: Literal[1]
     repositories: dict[str, RepositoryConfig] = Field(min_length=1)
@@ -194,8 +195,10 @@ class AutomationsConfig(StrictModel):
         return self
 
 
-class AutomationState(StrictModel):
+class AutomationState(BaseModel):
     """Track successful scheduled submissions."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     version: Literal[1] = 1
     successful: dict[str, AwareDatetime] = Field(default_factory=dict)
