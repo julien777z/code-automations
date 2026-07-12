@@ -13,6 +13,7 @@ def load_state(path: Path | None) -> AutomationState:
     """Load dispatcher state or return an empty state."""
     if path is None or not path.exists():
         return AutomationState()
+
     try:
         return AutomationState.model_validate_json(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValidationError) as error:

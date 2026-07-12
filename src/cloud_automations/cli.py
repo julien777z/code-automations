@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,6 +22,7 @@ from cloud_automations.scheduling import DueAutomation, due_automations
 from cloud_automations.state import load_state
 
 __all__: Final[tuple[str, ...]] = ("main",)
+LOGGER: Final[logging.Logger] = logging.getLogger(__name__)
 
 
 class DueRecord(BaseModel):
@@ -52,9 +54,11 @@ def parse_datetime(value: str | None) -> datetime:
     """Parse an aware ISO timestamp or return the current UTC instant."""
     if value is None:
         return datetime.now(UTC)
+
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         raise ConfigurationError("timestamps must include a timezone offset")
+
     return parsed
 
 
@@ -106,44 +110,64 @@ def run(arguments: CliArguments) -> int:
     summary_path = Path(runtime.github_step_summary) if runtime.github_step_summary else None
     if arguments.command == "validate":
         validate_repository(arguments.config, arguments.config.resolve().parent / "automations.schema.json")
-        print("Configuration is valid.")
+        LOGGER.info("Configuration is valid.")
+
         return 0
+
     loaded = load_configuration(arguments.config)
     self_repository = resolve_self_repository(loaded.root, runtime.github_repository)
     if arguments.command == "render":
         if arguments.automation is None:
             raise ConfigurationError("render requires an automation name")
+
         target = find_target(loaded, self_repository, arguments.automation)
-        print(render_target(loaded, target), end="")
+        LOGGER.info(render_target(loaded, target).removesuffix("\n"))
+
         return 0
+
     state = load_state(arguments.state)
     now = parse_datetime(arguments.now)
     if arguments.command == "due":
-        print(due_payload(due_automations(targets(loaded, self_repository), state, now)))
+        LOGGER.info(due_payload(due_automations(targets(loaded, self_repository), state, now)))
+
         return 0
+
     if arguments.automation is not None:
         target = find_target(loaded, self_repository, arguments.automation)
         result = dispatch_target(loaded, target)
         submission = SubmittedAutomation(name=target.name, result=result)
         write_summary(summary_path, submission)
-        print(result.task_url)
+        LOGGER.info(result.task_url)
+
         return 0
+
     if not arguments.scheduled or arguments.state is None:
         raise ConfigurationError("scheduled dispatch requires --state")
+
     due = due_automations(targets(loaded, self_repository), state, now)
     outcome = dispatch_due(loaded, due, state, arguments.state)
     for submission in outcome.submissions:
         write_summary(summary_path, submission)
-        print(submission.result.task_url)
+        LOGGER.info(submission.result.task_url)
+
     if outcome.failures:
         raise DispatchError("; ".join(outcome.failures))
+
     return 0
+
+
+def configure_logging() -> None:
+    """Configure command-line output logging."""
+    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
 
 
 def main() -> int:
     """Run the cloud-automations CLI."""
+    configure_logging()
+
     try:
         return run(CliArguments.model_validate(vars(build_parser().parse_args())))
     except (ConfigurationError, DispatchError, ValueError) as error:
-        print(error, file=sys.stderr)
+        LOGGER.error(error)
+
         return 1

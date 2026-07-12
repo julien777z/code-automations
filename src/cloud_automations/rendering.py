@@ -16,6 +16,7 @@ def render_target(loaded: LoadedConfiguration, target: AutomationTarget) -> str:
         f"- Environment: {target.environment}",
         f"- Attempts: {target.automation.attempts}",
     ]
+
     for skill in target.automation.skills:
         sections.extend(
             [
@@ -25,6 +26,7 @@ def render_target(loaded: LoadedConfiguration, target: AutomationTarget) -> str:
                 read_fragment(loaded.root, "skills", skill),
             ]
         )
+
     sections.extend(
         [
             "",
@@ -33,4 +35,5 @@ def render_target(loaded: LoadedConfiguration, target: AutomationTarget) -> str:
             read_fragment(loaded.root, "prompts", target.automation.prompt),
         ]
     )
+
     return "\n".join(sections) + "\n"

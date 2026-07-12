@@ -1,7 +1,6 @@
 import re
 import subprocess
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
@@ -26,9 +25,10 @@ __all__: Final[tuple[str, ...]] = (
 )
 
 
-@dataclass(frozen=True)
-class SubmissionRequest:
+class SubmissionRequest(BaseModel):
     """Describe one Codex Cloud submission."""
+
+    model_config = ConfigDict(frozen=True)
 
     target: AutomationTarget
     prompt: str
@@ -37,7 +37,7 @@ class SubmissionRequest:
 class SubmissionResult(BaseModel):
     """Capture a submitted Codex Cloud task URL."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     task_url: HttpUrl
 
@@ -45,17 +45,19 @@ class SubmissionResult(BaseModel):
 type Submitter = Callable[[SubmissionRequest], SubmissionResult]
 
 
-@dataclass(frozen=True)
-class SubmittedAutomation:
+class SubmittedAutomation(BaseModel):
     """Pair a submitted automation with its task result."""
+
+    model_config = ConfigDict(frozen=True)
 
     name: str
     result: SubmissionResult
 
 
-@dataclass(frozen=True)
-class DispatchOutcome:
+class DispatchOutcome(BaseModel):
     """Collect successful submissions and failures."""
+
+    model_config = ConfigDict(frozen=True)
 
     submissions: list[SubmittedAutomation]
     failures: list[str]
@@ -80,12 +82,17 @@ def submit_cloud_task(request: SubmissionRequest) -> SubmissionResult:
         text=True,
         check=False,
     )
+
     if result.returncode != 0:
         detail = result.stderr.strip() or "codex cloud exec failed without an error message"
+
         raise DispatchError(detail)
+
     output = result.stdout.strip()
+
     if not re.fullmatch(r"https://chatgpt\.com/codex/tasks/[A-Za-z0-9_-]+", output):
         raise DispatchError("codex cloud exec did not return a task URL")
+
     return SubmissionResult(task_url=output)
 
 
@@ -106,13 +113,16 @@ def dispatch_due(
     """Submit due automations and advance state only on accepted tasks."""
     submissions: list[SubmittedAutomation] = []
     failures: list[str] = []
+
     for item in due:
         try:
             result = dispatch_target(loaded, item.target, submitter)
         except DispatchError as error:
             failures.append(f"{item.target.name}: {error}")
             continue
+
         state.successful[item.target.name] = item.scheduled_for
         save_state(state_path, state)
         submissions.append(SubmittedAutomation(name=item.target.name, result=result))
+
     return DispatchOutcome(submissions=submissions, failures=failures)
