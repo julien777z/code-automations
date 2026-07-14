@@ -22,7 +22,9 @@ class CodexTomlConfig(TypedDict):
 CODEX_TOML_CONFIG: Final[CodexTomlConfig] = CodexTomlConfig(
     settings_start_marker="# >>> agent-sync managed Codex settings >>>",
     settings_end_marker="# <<< agent-sync managed Codex settings <<<",
-    setting_pattern=re.compile(r"^\s*(?:model|project_doc_max_bytes)\s*="),
+    setting_pattern=re.compile(
+        r"^\s*(?:approval_policy|model|project_doc_max_bytes|sandbox_mode)\s*="
+    ),
 )
 
 
@@ -225,6 +227,12 @@ def render_codex_settings_block(settings: CodexSettings) -> str:
     """Render canonical Codex settings as a marked TOML block."""
 
     lines = [CODEX_TOML_CONFIG["settings_start_marker"]]
+    lines.extend(
+        (
+            f"approval_policy = {json.dumps(settings.approval_policy, ensure_ascii=False)}",
+            f"sandbox_mode = {json.dumps(settings.sandbox_mode, ensure_ascii=False)}",
+        )
+    )
 
     if settings.model is not None:
         lines.append(f"model = {json.dumps(settings.model, ensure_ascii=False)}")
