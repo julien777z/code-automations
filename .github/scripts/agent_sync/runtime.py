@@ -25,6 +25,7 @@ def main(arguments: list[str] | None = None) -> int:
     """Run the requested agent-sync command."""
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
     parsed_arguments = parse_arguments(arguments)
 
     if not WORKSPACE.agents.exists():
@@ -61,6 +62,7 @@ def main(arguments: list[str] | None = None) -> int:
         return ExitCode.DIFFERENCES
 
     apply_changes(WORKSPACE, diffs, stale_paths)
+
     logger.info(
         "Sync complete: %d output changes and %d stale paths removed",
         len(diffs),
@@ -74,14 +76,18 @@ def parse_arguments(arguments: list[str] | None) -> RuntimeArguments:
     """Parse agent-sync command-line arguments."""
 
     parser = argparse.ArgumentParser(description="Sync canonical agent configuration")
+
     subparsers = parser.add_subparsers(dest="command", required=True)
+
     sync_parser = subparsers.add_parser(Command.SYNC.value, help="Generate provider outputs")
     sync_parser.add_argument("--dry-run", action="store_true", help="Report differences only")
+
     validate_parser = subparsers.add_parser(
         Command.VALIDATE.value,
         help="Validate canonical configuration",
     )
     validate_parser.set_defaults(dry_run=False)
+
     parsed_arguments = parser.parse_args(arguments)
 
     return RuntimeArguments(

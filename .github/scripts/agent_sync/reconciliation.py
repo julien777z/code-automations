@@ -22,6 +22,7 @@ from agent_sync.storage import (
 __all__ = ["apply_changes", "compute_diffs", "compute_stale_paths", "report_diffs"]
 
 logger = logging.getLogger(__name__)
+
 MAX_DIFF_LINES: Final[int] = 20
 NUMBERED_COPY_PATTERN: Final[re.Pattern[str]] = re.compile(r" \d+$")
 SKILL_OUTPUT_KINDS: Final[frozenset[OutputKind]] = frozenset(
@@ -87,10 +88,24 @@ def compute_stale_paths(
         stale_paths.update(
             path
             for path in skills_dir.iterdir()
-            if (path.is_dir() or path.is_symlink()) and path not in expected_skill_dirs
+            if is_managed_skill_link(path, workspace) and path not in expected_skill_dirs
         )
 
     return sorted(stale_paths, key=str)
+
+
+def is_managed_skill_link(path: Path, workspace: Workspace) -> bool:
+    """Return whether a skill link targets the canonical skill directory."""
+
+    if not path.is_symlink():
+        return False
+
+    try:
+        target = path.resolve()
+    except RuntimeError:
+        return False
+
+    return target.is_relative_to((workspace.agents / "skills").resolve())
 
 
 def find_stale_managed_files(
@@ -127,9 +142,6 @@ def managed_file_globs(workspace: Workspace) -> tuple[tuple[Path, str], ...]:
         (workspace.root / ".claude" / "agents", "*.md"),
         (workspace.root / ".cursor" / "hooks", "*"),
         (workspace.root / ".claude" / "hooks", "*"),
-        (workspace.root / ".cursor" / "skills", "**/*"),
-        (workspace.root / ".claude" / "skills", "**/*"),
-        (workspace.root / ".codex" / "skills", "**/*"),
     )
 
 
@@ -163,15 +175,18 @@ def apply_changes(
 
         if output.link_target is None:
             write_text(output.target_path, output.content)
+
             logger.info("Wrote %s", output.target_path)
     for diff in diffs:
         output = diff.output
 
         if output.link_target is not None:
             write_symlink(output.target_path, output.link_target)
+
             logger.info("Linked %s -> %s", output.target_path, expected_link_text(output))
     for stale_path in stale_paths:
         delete_path(stale_path)
+
         logger.info("Deleted %s", stale_path)
 
     remove_numbered_rule_copies(workspace)

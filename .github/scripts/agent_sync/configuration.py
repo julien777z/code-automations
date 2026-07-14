@@ -21,6 +21,7 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
 SettingsModel = TypeVar("SettingsModel", bound=BaseModel)
 
 

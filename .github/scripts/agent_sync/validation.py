@@ -15,6 +15,7 @@ def run_validations(workspace: Workspace, settings: AgentSyncSettings) -> None:
     context = ValidationContext(workspace=workspace, settings=settings)
     for check in validation_checks():
         check.run(context)
+
         logger.info("Validation passed: %s", check.name)
 
 

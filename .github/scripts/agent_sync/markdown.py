@@ -22,6 +22,7 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
 SAFE_SLUG_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 FrontMatterModel = TypeVar("FrontMatterModel", bound=BaseModel)
 
