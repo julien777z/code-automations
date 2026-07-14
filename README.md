@@ -37,6 +37,8 @@ runs; automations without a schedule remain manual-only.
 
 ```shell
 poetry install
+poetry run ruff check .
+poetry run pylint src tests linting/python-rules-lint/src linting/python-rules-lint/tests
 poetry run cloud-automations validate
 gh workflow run dispatch.yml -f automation=hello-world
 ```
