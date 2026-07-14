@@ -11,6 +11,7 @@ __all__: Final[tuple[str, ...]] = ("load_state", "save_state")
 
 def load_state(path: Path | None) -> AutomationState:
     """Load dispatcher state or return an empty state."""
+
     if path is None or not path.exists():
         return AutomationState()
 
@@ -22,4 +23,5 @@ def load_state(path: Path | None) -> AutomationState:
 
 def save_state(path: Path, state: AutomationState) -> None:
     """Persist dispatcher state deterministically."""
+
     path.write_text(state.model_dump_json(indent=2) + "\n", encoding="utf-8")

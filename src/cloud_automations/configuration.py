@@ -50,6 +50,7 @@ class AutomationTarget(BaseModel):
 
 def read_fragment(root: Path, directory: FragmentDirectory, reference: str) -> str:
     """Read one validated Markdown instruction fragment."""
+
     repository_root = root.resolve()
     base = (root / directory).resolve()
 
@@ -77,6 +78,7 @@ def read_fragment(root: Path, directory: FragmentDirectory, reference: str) -> s
 
 def validate_yaml_keys(node: Node | None, path: tuple[str, ...] = ()) -> None:
     """Reject duplicate YAML mapping keys before model validation."""
+
     if isinstance(node, MappingNode):
         mapping_keys: set[str] = set()
 
@@ -99,6 +101,7 @@ def validate_yaml_keys(node: Node | None, path: tuple[str, ...] = ()) -> None:
 
 def load_configuration(path: Path) -> LoadedConfiguration:
     """Load and semantically validate an automation YAML file."""
+
     try:
         content = path.read_text(encoding="utf-8")
         validate_yaml_keys(yaml.compose(content))
@@ -111,6 +114,7 @@ def load_configuration(path: Path) -> LoadedConfiguration:
         raise ConfigurationError(str(error)) from error
 
     loaded = LoadedConfiguration(root=path.resolve().parent, config=config)
+
     for repository in config.repositories.values():
         for automation in repository.automations.values():
             read_fragment(loaded.root, "prompts", automation.prompt)
@@ -122,6 +126,7 @@ def load_configuration(path: Path) -> LoadedConfiguration:
 
 def resolve_self_repository(root: Path, github_repository: str | None = None) -> str:
     """Resolve the reserved self repository identifier."""
+
     if github_repository is not None:
         if not REPOSITORY_PATTERN.fullmatch(github_repository):
             raise ConfigurationError("GITHUB_REPOSITORY is not a valid owner/repository identifier")
@@ -151,11 +156,13 @@ def resolve_self_repository(root: Path, github_repository: str | None = None) ->
 
 def targets(loaded: LoadedConfiguration, self_repository: str) -> list[AutomationTarget]:
     """Resolve all configured automation targets."""
+
     automation_targets: list[AutomationTarget] = []
 
     for repository_key, repository in loaded.config.repositories.items():
         repository_name = self_repository if repository_key == "self" else repository_key
         environment = repository.environment or repository_name
+
         for name, automation in repository.automations.items():
             automation_targets.append(
                 AutomationTarget(
@@ -172,6 +179,7 @@ def targets(loaded: LoadedConfiguration, self_repository: str) -> list[Automatio
 
 def find_target(loaded: LoadedConfiguration, self_repository: str, name: str) -> AutomationTarget:
     """Find an automation by its globally unique name."""
+
     target = next((item for item in targets(loaded, self_repository) if item.name == name), None)
 
     if target is None:
@@ -182,11 +190,13 @@ def find_target(loaded: LoadedConfiguration, self_repository: str, name: str) ->
 
 def schema_text() -> str:
     """Render the canonical JSON Schema."""
+
     return json.dumps(AutomationsConfig.model_json_schema(), indent=2, sort_keys=True) + "\n"
 
 
 def validate_repository(config_path: Path, schema_path: Path) -> LoadedConfiguration:
     """Validate configuration resources and committed schema freshness."""
+
     loaded = load_configuration(config_path)
 
     try:

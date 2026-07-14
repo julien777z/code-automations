@@ -15,6 +15,7 @@ from cloud_automations.state import save_state
 
 __all__: Final[tuple[str, ...]] = (
     "DispatchOutcome",
+    "ScheduledDispatch",
     "SubmittedAutomation",
     "SubmissionRequest",
     "SubmissionResult",
@@ -63,8 +64,20 @@ class DispatchOutcome(BaseModel):
     failures: list[str]
 
 
+class ScheduledDispatch(BaseModel):
+    """Group the inputs for one scheduled dispatch operation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    loaded: LoadedConfiguration
+    due: list[DueAutomation]
+    state: AutomationState
+    state_path: Path
+
+
 def submit_cloud_task(request: SubmissionRequest) -> SubmissionResult:
     """Submit one asynchronous Codex Cloud task."""
+
     result = subprocess.run(
         [
             "codex",
@@ -100,29 +113,30 @@ def dispatch_target(
     loaded: LoadedConfiguration, target: AutomationTarget, submitter: Submitter = submit_cloud_task
 ) -> SubmissionResult:
     """Render and submit one manual automation."""
+
     return submitter(SubmissionRequest(target=target, prompt=render_target(loaded, target)))
 
 
 def dispatch_due(
-    loaded: LoadedConfiguration,
-    due: list[DueAutomation],
-    state: AutomationState,
-    state_path: Path,
+    scheduled_dispatch: ScheduledDispatch,
     submitter: Submitter = submit_cloud_task,
 ) -> DispatchOutcome:
     """Submit due automations and advance state only on accepted tasks."""
+
     submissions: list[SubmittedAutomation] = []
     failures: list[str] = []
 
-    for item in due:
+    for item in scheduled_dispatch.due:
         try:
-            result = dispatch_target(loaded, item.target, submitter)
+            result = dispatch_target(scheduled_dispatch.loaded, item.target, submitter)
         except DispatchError as error:
             failures.append(f"{item.target.name}: {error}")
             continue
 
-        state.successful[item.target.name] = item.scheduled_for
-        save_state(state_path, state)
+        scheduled_dispatch.state.successful[item.target.name] = item.scheduled_for
+
+        save_state(scheduled_dispatch.state_path, scheduled_dispatch.state)
+
         submissions.append(SubmittedAutomation(name=item.target.name, result=result))
 
     return DispatchOutcome(submissions=submissions, failures=failures)

@@ -7,6 +7,7 @@ __all__: Final[tuple[str, ...]] = ("render_target",)
 
 def render_target(loaded: LoadedConfiguration, target: AutomationTarget) -> str:
     """Render automation metadata, ordered skills, and prompt."""
+
     sections = [
         "# Automation metadata",
         "",

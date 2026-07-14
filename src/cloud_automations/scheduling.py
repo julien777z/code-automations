@@ -22,6 +22,7 @@ class DueAutomation(BaseModel):
 
 def local_occurrence_to_utc(occurrence: datetime, timezone: ZoneInfo) -> datetime | None:
     """Return a valid local occurrence as a UTC instant."""
+
     localized = occurrence.replace(tzinfo=timezone, fold=0)
 
     if localized.astimezone(UTC).astimezone(timezone).replace(tzinfo=None) != occurrence:
@@ -32,12 +33,14 @@ def local_occurrence_to_utc(occurrence: datetime, timezone: ZoneInfo) -> datetim
 
 def latest_occurrence(schedule: ScheduleConfig, now: datetime) -> datetime:
     """Return the latest cron occurrence at or before an aware instant."""
+
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
 
     timezone = ZoneInfo(schedule.timezone)
     current = now.astimezone(UTC)
     local_now = current.astimezone(timezone).replace(tzinfo=None)
+
     iterator = croniter(schedule.cron, local_now + timedelta(seconds=1))
     previous = iterator.get_prev(datetime)
 
@@ -57,6 +60,7 @@ def due_automations(
     automation_targets: list[AutomationTarget], state: AutomationState, now: datetime
 ) -> list[DueAutomation]:
     """Find latest missed occurrences within the 24-hour catch-up window."""
+
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
 
@@ -66,11 +70,13 @@ def due_automations(
 
     for target in automation_targets:
         schedule = target.automation.schedule
+
         if schedule is None or not target.automation.enabled:
             continue
         occurrence = latest_occurrence(schedule, current)
         successful = state.successful.get(target.name)
         since = max(window_start, successful.astimezone(UTC)) if successful is not None else window_start
+
         if occurrence > since:
             due.append(DueAutomation(target=target, scheduled_for=occurrence))
 

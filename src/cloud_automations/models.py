@@ -23,10 +23,12 @@ REPOSITORY_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(?![A-Za-z0-9-]*--)[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[A-Za-z0-9._-]{1,100}$"
 )
 AUTOMATION_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+CRON_FIELD_BOUNDS: Final[tuple[tuple[int, int], ...]] = ((0, 59), (0, 23), (1, 31), (1, 12), (0, 7))
 
 
 def validate_reference(value: str) -> str:
     """Validate a prompt or skill reference."""
+
     if not value or value.endswith(".md") or "\\" in value or "//" in value or value.endswith("/"):
         raise ValueError("references must omit .md and use forward-slash relative paths")
 
@@ -43,6 +45,7 @@ def validate_reference(value: str) -> str:
 
 def validate_branch(value: str) -> str:
     """Validate a Git branch name."""
+
     invalid = (
         not value
         or len(value) > 255
@@ -67,6 +70,7 @@ def validate_branch(value: str) -> str:
 
 def validate_cron_field(value: str, minimum: int, maximum: int) -> bool:
     """Validate one numeric POSIX cron field."""
+
     for entry in value.split(","):
         segments = entry.split("/")
 
@@ -107,13 +111,14 @@ class ScheduleConfig(BaseModel):
     @classmethod
     def validate_cron(cls, value: str) -> str:
         """Require a five-field POSIX cron expression."""
+
         fields = value.split()
-        bounds = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 7)]
+
         if (
             len(fields) != 5
             or not all(
                 validate_cron_field(field, minimum, maximum)
-                for field, (minimum, maximum) in zip(fields, bounds, strict=True)
+                for field, (minimum, maximum) in zip(fields, CRON_FIELD_BOUNDS, strict=True)
             )
             or not croniter.is_valid(value)
         ):
@@ -125,6 +130,7 @@ class ScheduleConfig(BaseModel):
     @classmethod
     def validate_timezone(cls, value: str) -> str:
         """Require an available IANA timezone."""
+
         try:
             ZoneInfo(value)
         except ZoneInfoNotFoundError as error:
@@ -148,12 +154,14 @@ class AutomationConfig(BaseModel):
     @classmethod
     def validate_prompt(cls, value: str) -> str:
         """Validate the prompt reference."""
+
         return validate_reference(value)
 
     @field_validator("skills")
     @classmethod
     def validate_skills(cls, value: list[str]) -> list[str]:
         """Validate ordered skill references."""
+
         return [validate_reference(reference) for reference in value]
 
 
@@ -170,6 +178,7 @@ class RepositoryConfig(BaseModel):
     @classmethod
     def validate_environment(cls, value: str | None) -> str | None:
         """Validate an optional Cloud environment label."""
+
         if value is not None and (value != value.strip() or not value.isprintable()):
             raise ValueError("invalid Cloud environment label")
 
@@ -179,12 +188,14 @@ class RepositoryConfig(BaseModel):
     @classmethod
     def validate_repository_branch(cls, value: str) -> str:
         """Validate the repository branch."""
+
         return validate_branch(value)
 
     @field_validator("automations")
     @classmethod
     def validate_automation_names(cls, value: dict[str, AutomationConfig]) -> dict[str, AutomationConfig]:
         """Validate automation names."""
+
         invalid_name = next((name for name in value if not AUTOMATION_PATTERN.fullmatch(name)), None)
 
         if invalid_name is not None:
@@ -204,6 +215,7 @@ class AutomationsConfig(BaseModel):
     @model_validator(mode="after")
     def validate_repositories_and_names(self) -> Self:
         """Validate repository keys and global automation-name uniqueness."""
+
         automation_names: set[str] = set()
 
         for repository, config in self.repositories.items():
