@@ -7,24 +7,20 @@ from typing import Final
 from pydantic import TypeAdapter
 
 from cloud_automations.configuration import (
-    find_target,
     load_configuration,
-    resolve_self_repository,
-    targets,
     validate_repository,
 )
 from cloud_automations.dispatching import (
-    ScheduledDispatch,
-    SubmittedAutomation,
     dispatch_due,
     dispatch_target,
 )
 from cloud_automations.errors import ConfigurationError, DispatchError
-from cloud_automations.models.cli import CliArguments, DueRecord
-from cloud_automations.models.runtime import GitHubRuntime
+from cloud_automations.models.cli import CliArguments, DueRecord, GitHubRuntime
+from cloud_automations.models.dispatching import DueAutomation, ScheduledDispatch, SubmittedAutomation
 from cloud_automations.rendering import render_target
-from cloud_automations.scheduling import DueAutomation, due_automations
+from cloud_automations.scheduling import due_automations
 from cloud_automations.state import load_state
+from cloud_automations.targets import find_target, resolve_self_repository, resolve_targets
 from cloud_automations.utils import parse_datetime
 
 __all__: Final[tuple[str, ...]] = ("main",)
@@ -112,7 +108,7 @@ def run(arguments: CliArguments) -> int:
     now = parse_datetime(arguments.now)
 
     if arguments.command == "due":
-        logger.info(due_payload(due_automations(targets(loaded, self_repository), state, now)))
+        logger.info(due_payload(due_automations(resolve_targets(loaded, self_repository), state, now)))
 
         return 0
 
@@ -130,7 +126,7 @@ def run(arguments: CliArguments) -> int:
     if not arguments.scheduled or arguments.state is None:
         raise ConfigurationError("scheduled dispatch requires --state")
 
-    due = due_automations(targets(loaded, self_repository), state, now)
+    due = due_automations(resolve_targets(loaded, self_repository), state, now)
     scheduled_dispatch = ScheduledDispatch(
         loaded=loaded,
         due=due,
@@ -151,16 +147,10 @@ def run(arguments: CliArguments) -> int:
     return 0
 
 
-def configure_logging() -> None:
-    """Configure command-line output logging."""
-
-    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
-
-
 def main() -> int:
     """Run the cloud-automations CLI."""
 
-    configure_logging()
+    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
 
     arguments = CliArguments.model_validate(vars(build_parser().parse_args()))
 

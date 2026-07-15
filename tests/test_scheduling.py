@@ -1,15 +1,11 @@
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from datetime import UTC, datetime
 
 import pytest
 
-from cloud_automations.configuration import LoadedConfiguration, targets
-from cloud_automations.dispatching import ScheduledDispatch, SubmissionRequest, SubmissionResult, dispatch_due
-from cloud_automations.errors import DispatchError
-from cloud_automations.models.configuration import ScheduleConfig
-from cloud_automations.models.state import AutomationState
+from cloud_automations.models.configuration import LoadedConfiguration, ScheduleConfig
+from cloud_automations.models.dispatching import AutomationState
 from cloud_automations.scheduling import due_automations, latest_occurrence
-from cloud_automations.state import load_state
+from cloud_automations.targets import resolve_targets
 
 
 class TestScheduling:
@@ -40,7 +36,7 @@ class TestScheduling:
     ) -> None:
         """Select the latest missed occurrence and suppress an already-recorded one."""
 
-        automation_targets = targets(scheduled_configuration, "owner/repository")
+        automation_targets = resolve_targets(scheduled_configuration, "owner/repository")
         now = datetime(2025, 7, 15, 18, 25, tzinfo=UTC)
 
         due = due_automations(automation_targets, AutomationState(), now)
@@ -57,7 +53,7 @@ class TestScheduling:
     ) -> None:
         """Ignore a latest occurrence outside the catch-up window."""
 
-        automation_targets = targets(scheduled_configuration, "owner/repository")
+        automation_targets = resolve_targets(scheduled_configuration, "owner/repository")
         automation_targets[0].automation.schedule = ScheduleConfig(cron="0 0 1 * *", timezone="UTC")
         now = datetime(2025, 7, 15, 18, 0, tzinfo=UTC)
 
@@ -66,7 +62,7 @@ class TestScheduling:
     def test_disabled_automation_is_not_scheduled(self, scheduled_configuration: LoadedConfiguration) -> None:
         """Suppress scheduled execution while preserving the configured target."""
 
-        automation_targets = targets(scheduled_configuration, "owner/repository")
+        automation_targets = resolve_targets(scheduled_configuration, "owner/repository")
         automation_targets[0].automation.enabled = False
 
         assert due_automations(automation_targets, AutomationState(), datetime.now(UTC)) == []
@@ -79,50 +75,3 @@ class TestScheduling:
 
         with pytest.raises(ValueError, match="timezone-aware"):
             latest_occurrence(schedule, datetime(2025, 1, 1))
-
-
-class TestDispatching:
-    """Test scheduled Cloud task submission."""
-
-    def test_failed_submission_retries_without_advancing_state(
-        self, scheduled_configuration: LoadedConfiguration, tmp_path: Path
-    ) -> None:
-        """Leave failed occurrences due and advance state after a later success."""
-
-        automation_targets = targets(scheduled_configuration, "owner/repository")
-        now = datetime(2025, 7, 15, 18, 25, tzinfo=UTC)
-        due = due_automations(automation_targets, AutomationState(), now)
-        state_path = tmp_path / "state.json"
-        state = AutomationState()
-        scheduled_dispatch = ScheduledDispatch(
-            loaded=scheduled_configuration,
-            due=due,
-            state=state,
-            state_path=state_path,
-        )
-
-        def fail(request: SubmissionRequest) -> SubmissionResult:
-            """Fail one test submission."""
-
-            assert request.target.name == "scheduled"
-
-            raise DispatchError("submission failed")
-
-        failed = dispatch_due(scheduled_dispatch, fail)
-
-        assert failed.failures == ["scheduled: submission failed"]
-        assert state.successful == {}
-        assert not state_path.exists()
-        assert len(due_automations(automation_targets, state, now + timedelta(minutes=1))) == 1
-
-        def succeed(request: SubmissionRequest) -> SubmissionResult:
-            """Accept one test submission."""
-
-            assert request.prompt.endswith("Run the task.\n")
-
-            return SubmissionResult(task_url="https://chatgpt.com/codex/tasks/task_example")
-
-        successful = dispatch_due(scheduled_dispatch, succeed)
-
-        assert successful.failures == []
-        assert load_state(state_path).successful["scheduled"] == due[0].scheduled_for

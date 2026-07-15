@@ -4,7 +4,7 @@ from typing import Final
 from pydantic import ValidationError
 
 from cloud_automations.errors import ConfigurationError
-from cloud_automations.models.state import AutomationState
+from cloud_automations.models.dispatching import AutomationState
 
 __all__: Final[tuple[str, ...]] = ("load_state", "save_state")
 

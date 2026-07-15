@@ -18,11 +18,6 @@ from cloud_automations.state import save_state
 TASK_URL_PATTERN: Final[re.Pattern[str]] = re.compile(r"https://chatgpt\.com/codex/tasks/[A-Za-z0-9_-]+")
 
 __all__: Final[tuple[str, ...]] = (
-    "DispatchOutcome",
-    "ScheduledDispatch",
-    "SubmittedAutomation",
-    "SubmissionRequest",
-    "SubmissionResult",
     "Submitter",
     "dispatch_due",
     "dispatch_target",

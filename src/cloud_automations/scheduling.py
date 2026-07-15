@@ -5,10 +5,9 @@ from zoneinfo import ZoneInfo
 from croniter import croniter
 
 from cloud_automations.models.configuration import AutomationTarget, ScheduleConfig
-from cloud_automations.models.scheduling import DueAutomation
-from cloud_automations.models.state import AutomationState
+from cloud_automations.models.dispatching import AutomationState, DueAutomation
 
-__all__: Final[tuple[str, ...]] = ("DueAutomation", "due_automations", "latest_occurrence")
+__all__: Final[tuple[str, ...]] = ("due_automations", "latest_occurrence")
 
 
 def local_occurrence_to_utc(occurrence: datetime, timezone: ZoneInfo) -> datetime | None:

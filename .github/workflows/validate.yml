@@ -12,8 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-env
-        with:
-          post_setup_command: poetry install
       - run: poetry run pytest
       - run: poetry run ruff check .
       - run: poetry run ruff format --check .
