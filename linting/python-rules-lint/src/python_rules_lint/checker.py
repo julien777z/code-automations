@@ -266,9 +266,18 @@ class PythonRulesChecker(BaseChecker):
             self.add_message("missing-blank-line-after-docstring", node=node, args=(node.name,))
 
     def is_base_model(self, node: nodes.ClassDef) -> bool:
-        """Return whether a class directly extends Pydantic BaseModel."""
+        """Return whether a class directly extends a Pydantic model base."""
 
-        return any(base.as_string() in {"BaseModel", "pydantic.BaseModel"} for base in node.bases)
+        return any(
+            base.as_string()
+            in {
+                "BaseModel",
+                "BaseSettings",
+                "pydantic.BaseModel",
+                "pydantic_settings.BaseSettings",
+            }
+            for base in node.bases
+        )
 
     def check_definition_name(self, node: DefinitionNode) -> None:
         """Check one definition's name conventions."""

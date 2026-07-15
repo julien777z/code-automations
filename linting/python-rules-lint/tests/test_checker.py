@@ -181,12 +181,17 @@ def invalid_model_source(tmp_path: Path) -> Path:
     source_path.write_text(
         '''import logging
 from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 
 LOGGER = logging.getLogger(__name__)
 
 
 class Request(BaseModel):
     """Define a request."""
+
+
+class Runtime(BaseSettings):
+    """Define runtime settings."""
 
 ''',
         encoding="utf-8",
@@ -255,8 +260,9 @@ class TestPythonRulesChecker:
         result = run_pylint(invalid_model_source)
         messages = reported_messages(result)
 
-        assert ("uppercase-logger-name", 4) in messages
-        assert ("model-outside-models-directory", 7) in messages
+        assert ("uppercase-logger-name", 5) in messages
+        assert ("model-outside-models-directory", 8) in messages
+        assert ("model-outside-models-directory", 12) in messages
 
     def test_reports_inline_regex_call(self, invalid_regex_source: Path) -> None:
         """Report regular expressions passed to module-level helpers."""

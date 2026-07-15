@@ -22,8 +22,8 @@ from cloud_automations.dispatching import (
 )
 from cloud_automations.errors import ConfigurationError, DispatchError
 from cloud_automations.models.cli import CliArguments, DueRecord
+from cloud_automations.models.runtime import GitHubRuntime
 from cloud_automations.rendering import render_target
-from cloud_automations.runtime import GitHubRuntime
 from cloud_automations.scheduling import DueAutomation, due_automations
 from cloud_automations.state import load_state
 
