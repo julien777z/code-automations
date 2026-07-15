@@ -3,9 +3,9 @@ import logging
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final, Literal
+from typing import Final
 
-from pydantic import BaseModel, ConfigDict, TypeAdapter
+from pydantic import TypeAdapter
 
 from cloud_automations.configuration import (
     find_target,
@@ -21,6 +21,7 @@ from cloud_automations.dispatching import (
     dispatch_target,
 )
 from cloud_automations.errors import ConfigurationError, DispatchError
+from cloud_automations.models.cli import CliArguments, DueRecord
 from cloud_automations.rendering import render_target
 from cloud_automations.runtime import GitHubRuntime
 from cloud_automations.scheduling import DueAutomation, due_automations
@@ -28,32 +29,7 @@ from cloud_automations.state import load_state
 
 __all__: Final[tuple[str, ...]] = ("main",)
 
-LOGGER: Final[logging.Logger] = logging.getLogger(__name__)
-
-
-class DueRecord(BaseModel):
-    """Serialize one due automation."""
-
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    automation: str
-    repository: str
-    branch: str
-    environment: str
-    scheduled_for: datetime
-
-
-class CliArguments(BaseModel):
-    """Define typed command-line arguments."""
-
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    config: Path
-    command: Literal["validate", "render", "due", "dispatch"]
-    automation: str | None = None
-    scheduled: bool = False
-    state: Path | None = None
-    now: str | None = None
+logger = logging.getLogger(__name__)
 
 
 def parse_datetime(value: str | None) -> datetime:
@@ -130,7 +106,7 @@ def run(arguments: CliArguments) -> int:
     if arguments.command == "validate":
         validate_repository(arguments.config, arguments.config.resolve().parent / "automations.schema.json")
 
-        LOGGER.info("Configuration is valid.")
+        logger.info("Configuration is valid.")
 
         return 0
 
@@ -142,7 +118,7 @@ def run(arguments: CliArguments) -> int:
             raise ConfigurationError("render requires an automation name")
 
         target = find_target(loaded, self_repository, arguments.automation)
-        LOGGER.info(render_target(loaded, target).removesuffix("\n"))
+        logger.info(render_target(loaded, target).removesuffix("\n"))
 
         return 0
 
@@ -150,7 +126,7 @@ def run(arguments: CliArguments) -> int:
     now = parse_datetime(arguments.now)
 
     if arguments.command == "due":
-        LOGGER.info(due_payload(due_automations(targets(loaded, self_repository), state, now)))
+        logger.info(due_payload(due_automations(targets(loaded, self_repository), state, now)))
 
         return 0
 
@@ -161,7 +137,7 @@ def run(arguments: CliArguments) -> int:
 
         write_summary(summary_path, submission)
 
-        LOGGER.info(result.task_url)
+        logger.info(result.task_url)
 
         return 0
 
@@ -181,7 +157,7 @@ def run(arguments: CliArguments) -> int:
     for submission in outcome.submissions:
         write_summary(summary_path, submission)
 
-        LOGGER.info(submission.result.task_url)
+        logger.info(submission.result.task_url)
 
     if outcome.failures:
         raise DispatchError("; ".join(outcome.failures))
@@ -205,6 +181,6 @@ def main() -> int:
     try:
         return run(arguments)
     except (ConfigurationError, DispatchError, ValueError) as error:
-        LOGGER.error(error)
+        logger.error(error)
 
         return 1

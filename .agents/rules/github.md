@@ -19,3 +19,9 @@ alwaysApply: true
 
 - Use version-tagged GitHub Actions such as `actions/checkout@v4` and `actions/setup-python@v5`.
 - Do not pin actions to full commit SHAs.
+
+## Dependency Installation
+
+- Declare project dependencies used by workflows in the repository's dependency manifests and commit their lockfiles.
+- Run project-level installation commands such as `poetry install` or `npm install` in workflows.
+- Do not install individual project packages or embed their versions directly in workflow commands.

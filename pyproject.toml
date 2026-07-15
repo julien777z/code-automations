@@ -55,8 +55,10 @@ enable = [
   "invalid-leading-underscore",
   "missing-blank-line-after-docstring",
   "missing-definition-docstring",
+  "model-outside-models-directory",
   "multiline-definition-docstring",
   "parent-relative-import",
+  "uppercase-logger-name",
 ]
 
 [build-system]

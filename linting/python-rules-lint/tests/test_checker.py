@@ -17,8 +17,10 @@ CUSTOM_MESSAGES: Final[str] = ",".join(
         "invalid-leading-underscore",
         "missing-blank-line-after-docstring",
         "missing-definition-docstring",
+        "model-outside-models-directory",
         "multiline-definition-docstring",
         "parent-relative-import",
+        "uppercase-logger-name",
     )
 )
 
@@ -115,6 +117,8 @@ def valid_package(tmp_path: Path) -> Path:
 
     package = tmp_path / "valid_package"
     package.mkdir()
+    models = package / "models"
+    models.mkdir()
 
     (package / "module.py").write_text(
         '''CONSTANT = "value"
@@ -154,8 +158,40 @@ def main() -> str:
 ''',
         encoding="utf-8",
     )
+    (models / "configuration.py").write_text(
+        '''from pydantic import BaseModel
+
+
+class Configuration(BaseModel):
+    """Define valid configuration."""
+
+''',
+        encoding="utf-8",
+    )
 
     return package
+
+
+@pytest.fixture
+def invalid_model_source(tmp_path: Path) -> Path:
+    """Create source with misplaced model and logger declarations."""
+
+    source_path = tmp_path / "runtime.py"
+    source_path.write_text(
+        '''import logging
+from pydantic import BaseModel
+
+LOGGER = logging.getLogger(__name__)
+
+
+class Request(BaseModel):
+    """Define a request."""
+
+''',
+        encoding="utf-8",
+    )
+
+    return source_path
 
 
 class TestPythonRulesChecker:
@@ -191,6 +227,15 @@ class TestPythonRulesChecker:
 
         assert result.returncode == 0, result.stdout + result.stderr
         assert reported_messages(result) == set()
+
+    def test_reports_model_and_logger_placement(self, invalid_model_source: Path) -> None:
+        """Report misplaced models and constant-style logger names."""
+
+        result = run_pylint(invalid_model_source)
+        messages = reported_messages(result)
+
+        assert ("uppercase-logger-name", 4) in messages
+        assert ("model-outside-models-directory", 7) in messages
 
     def test_loads_from_root_configuration(self, valid_package: Path) -> None:
         """Load the plugin and allowlist from the consumer configuration."""

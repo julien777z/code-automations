@@ -35,6 +35,12 @@ alwaysApply: true
 - Compound nouns that name a single concept are one entity, not two — `access_control.py`, `request_metadata.py`, and `audit_trail.py` are all fine.
 - When the entity package needs a module for its primary/orchestration surface, name it after the package (`resource/resource.py`) with an empty `__init__.py`; consumers import the specific submodule.
 
+## Model Placement
+
+- Define Pydantic `BaseModel` classes and other application data models under the package's `models/` directory.
+- Split models into intuitively named files by concept, such as `models/configuration.py` or `models/submission.py`.
+- Do not place models beside operational code or collect unrelated models in a catch-all `models.py` module.
+
 ## Modern Syntax
 
 - Use modern type hints: `str | None` instead of `Optional[str]`.
@@ -215,6 +221,7 @@ config = third_party_package.Config(
 - A group of related **configuration values** (API hosts, endpoint paths, protocol versions, header tokens, feature markers, default model names, timeouts) is not a set of constants — collect it into a **single typed config map**, not one `Final` per value.
 - Model the map with a `TypedDict` and build it by **calling** the constructor with keyword arguments (`CONFIG: Final[ReviewConfig] = ReviewConfig(...)`), then read values by key (`CONFIG["routine_host"]`). Do not annotate a plain dict literal.
 - Reserve standalone `Final` constants for genuinely single, unrelated constants — a compiled regex, a file path, a sentinel — that do not belong to a config group.
+- Logger instances are runtime collaborators, not constants. Name them `logger`, never `LOGGER`, and do not annotate them as `Final`.
 - This is about grouping; it does not override the **Configuration** section below. Environment-backed values, or values that belong in the repository's central settings layer, still go there — not in a module-level map.
 
 ```python

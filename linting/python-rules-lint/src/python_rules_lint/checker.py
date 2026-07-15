@@ -104,6 +104,16 @@ class PythonRulesChecker(BaseChecker):
             "banned-python-terminology",
             "Identifiers, docstrings, and comments must use behavior-specific terminology.",
         ),
+        "C9511": (
+            "Application model %s must be defined under a models directory",
+            "model-outside-models-directory",
+            "Application data models belong in intuitive modules under models directories.",
+        ),
+        "C9512": (
+            "Logger instances must use the lowercase name logger",
+            "uppercase-logger-name",
+            "Logger instances are runtime collaborators rather than constants.",
+        ),
     }
 
     def __init__(self, linter: PyLinter) -> None:
@@ -163,6 +173,9 @@ class PythonRulesChecker(BaseChecker):
         self.check_definition(node)
         self.check_definition_name(node)
 
+        if self.is_base_model(node) and "models" not in Path(node.root().file).parts:
+            self.add_message("model-outside-models-directory", node=node, args=(node.name,))
+
     def visit_name(self, node: nodes.Name) -> None:
         """Check a referenced Python name."""
 
@@ -177,6 +190,9 @@ class PythonRulesChecker(BaseChecker):
 
         if isinstance(node.scope(), nodes.Module):
             self.check_leading_underscore(node.name, node, allowed=False)
+
+            if node.name == "LOGGER":
+                self.add_message("uppercase-logger-name", node=node)
 
     def visit_attribute(self, node: nodes.Attribute) -> None:
         """Check an attribute reference and direct environment access."""
@@ -225,6 +241,11 @@ class PythonRulesChecker(BaseChecker):
 
         if following_line >= len(self.source_lines) or self.source_lines[following_line].strip():
             self.add_message("missing-blank-line-after-docstring", node=node, args=(node.name,))
+
+    def is_base_model(self, node: nodes.ClassDef) -> bool:
+        """Return whether a class directly extends Pydantic BaseModel."""
+
+        return any(base.as_string() in {"BaseModel", "pydantic.BaseModel"} for base in node.bases)
 
     def check_definition_name(self, node: DefinitionNode) -> None:
         """Check one definition's name conventions."""

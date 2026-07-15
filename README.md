@@ -6,7 +6,7 @@ Run reusable Codex Cloud prompts from GitHub Actions.
 
 1. Create a Codex Cloud environment whose label matches each `owner/repository`, or set an explicit
    `environment` in `automations.yaml`.
-2. Install Poetry and Python 3.13 for local validation.
+2. Install Poetry, Python 3.13, and Node.js 22 for local validation.
 3. Add the local Codex authentication document as an Actions secret:
 
    ```shell
@@ -37,6 +37,7 @@ runs; automations without a schedule remain manual-only.
 
 ```shell
 poetry install
+npm install
 poetry run ruff check .
 poetry run pylint src tests linting/python-rules-lint/src linting/python-rules-lint/tests
 poetry run cloud-automations validate

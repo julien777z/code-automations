@@ -5,11 +5,16 @@ from pathlib import Path
 from typing import Final, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import ValidationError
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from cloud_automations.errors import ConfigurationError
-from cloud_automations.models import REPOSITORY_PATTERN, AutomationConfig, AutomationsConfig
+from cloud_automations.models.configuration import (
+    REPOSITORY_PATTERN,
+    AutomationsConfig,
+    AutomationTarget,
+    LoadedConfiguration,
+)
 
 type FragmentDirectory = Literal["prompts", "skills"]
 
@@ -25,27 +30,6 @@ __all__: Final[tuple[str, ...]] = (
     "validate_yaml_keys",
     "validate_repository",
 )
-
-
-class LoadedConfiguration(BaseModel):
-    """Pair a validated configuration with its repository root."""
-
-    model_config = ConfigDict(frozen=True)
-
-    root: Path
-    config: AutomationsConfig
-
-
-class AutomationTarget(BaseModel):
-    """Represent a resolved automation target."""
-
-    model_config = ConfigDict(frozen=True)
-
-    name: str
-    repository: str
-    environment: str
-    branch: str
-    automation: AutomationConfig
 
 
 def read_fragment(root: Path, directory: FragmentDirectory, reference: str) -> str:

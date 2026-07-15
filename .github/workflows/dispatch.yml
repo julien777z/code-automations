@@ -31,7 +31,10 @@ jobs:
         with:
           node-version: "22"
       - run: poetry run cloud-automations validate
-      - run: npm install --global @openai/codex@0.144.1
+      - name: Install Node dependencies
+        run: |
+          npm install
+          printf '%s\n' "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Load state
         if: github.event_name == 'schedule'
         run: |

@@ -1,16 +1,17 @@
 import re
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Final, Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 __all__: Final[tuple[str, ...]] = (
     "AUTOMATION_PATTERN",
     "AutomationConfig",
-    "AutomationState",
+    "AutomationTarget",
     "AutomationsConfig",
+    "LoadedConfiguration",
     "REPOSITORY_PATTERN",
     "RepositoryConfig",
     "ScheduleConfig",
@@ -231,10 +232,22 @@ class AutomationsConfig(BaseModel):
         return self
 
 
-class AutomationState(BaseModel):
-    """Track successful scheduled submissions."""
+class LoadedConfiguration(BaseModel):
+    """Pair a validated configuration with its repository root."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(frozen=True)
 
-    version: Literal[1] = 1
-    successful: dict[str, AwareDatetime] = Field(default_factory=dict)
+    root: Path
+    config: AutomationsConfig
+
+
+class AutomationTarget(BaseModel):
+    """Represent a resolved automation target."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    repository: str
+    environment: str
+    branch: str
+    automation: AutomationConfig

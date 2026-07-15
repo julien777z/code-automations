@@ -6,7 +6,8 @@ import pytest
 from cloud_automations.configuration import LoadedConfiguration, targets
 from cloud_automations.dispatching import ScheduledDispatch, SubmissionRequest, SubmissionResult, dispatch_due
 from cloud_automations.errors import DispatchError
-from cloud_automations.models import AutomationState, ScheduleConfig
+from cloud_automations.models.configuration import ScheduleConfig
+from cloud_automations.models.state import AutomationState
 from cloud_automations.scheduling import due_automations, latest_occurrence
 from cloud_automations.state import load_state
 

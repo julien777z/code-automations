@@ -3,21 +3,12 @@ from typing import Final
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
-from pydantic import BaseModel, ConfigDict
 
-from cloud_automations.configuration import AutomationTarget
-from cloud_automations.models import AutomationState, ScheduleConfig
+from cloud_automations.models.configuration import AutomationTarget, ScheduleConfig
+from cloud_automations.models.scheduling import DueAutomation
+from cloud_automations.models.state import AutomationState
 
 __all__: Final[tuple[str, ...]] = ("DueAutomation", "due_automations", "latest_occurrence")
-
-
-class DueAutomation(BaseModel):
-    """Describe one due scheduled automation."""
-
-    model_config = ConfigDict(frozen=True)
-
-    target: AutomationTarget
-    scheduled_for: datetime
 
 
 def local_occurrence_to_utc(occurrence: datetime, timezone: ZoneInfo) -> datetime | None:
