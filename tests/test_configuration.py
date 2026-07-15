@@ -6,7 +6,7 @@ from cloud_automations.configuration import (
     load_configuration,
     read_fragment,
     schema_text,
-    validate_repository,
+    validate_configuration,
 )
 from cloud_automations.errors import ConfigurationError
 from cloud_automations.rendering import render_target
@@ -256,15 +256,18 @@ repositories:
         with pytest.raises(ConfigurationError):
             load_configuration(automation_config_path)
 
-    def test_stale_schema_is_rejected(self, automation_config_path: Path) -> None:
-        """Reject a committed schema that differs from the generated model schema."""
+    def test_configuration_validation_does_not_require_a_local_schema(
+        self, automation_config_path: Path
+    ) -> None:
+        """Validate consumer resources without requiring a copied schema file."""
 
-        schema_path = automation_config_path.parent / "automations.schema.json"
-        schema_path.write_text("{}\n", encoding="utf-8")
+        validate_configuration(automation_config_path)
 
-        with pytest.raises(ConfigurationError, match="stale generated schema"):
-            validate_repository(automation_config_path, schema_path)
+        assert not (automation_config_path.parent / "automations.schema.json").exists()
 
-        schema_path.write_text(schema_text(), encoding="utf-8")
+    def test_committed_schema_matches_the_configuration_model(self) -> None:
+        """Keep the action repository's published schema synchronized with its model."""
 
-        validate_repository(automation_config_path, schema_path)
+        schema_path = Path(__file__).parents[1] / "automations.schema.json"
+
+        assert schema_path.read_text(encoding="utf-8") == schema_text()

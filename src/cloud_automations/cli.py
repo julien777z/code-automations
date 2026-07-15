@@ -8,7 +8,7 @@ from pydantic import TypeAdapter
 
 from cloud_automations.configuration import (
     load_configuration,
-    validate_repository,
+    validate_configuration,
 )
 from cloud_automations.dispatching import (
     dispatch_due,
@@ -86,7 +86,7 @@ def run(arguments: CliArguments) -> int:
     summary_path = Path(runtime.github_step_summary) if runtime.github_step_summary else None
 
     if arguments.command == "validate":
-        validate_repository(arguments.config, arguments.config.resolve().parent / "automations.schema.json")
+        validate_configuration(arguments.config)
 
         logger.info("Configuration is valid.")
 

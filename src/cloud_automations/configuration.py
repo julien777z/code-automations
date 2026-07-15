@@ -18,7 +18,7 @@ __all__: Final[tuple[str, ...]] = (
     "load_configuration",
     "read_fragment",
     "schema_text",
-    "validate_repository",
+    "validate_configuration",
 )
 
 
@@ -104,15 +104,7 @@ def schema_text() -> str:
     return json.dumps(AutomationsConfig.model_json_schema(), indent=2, sort_keys=True) + "\n"
 
 
-def validate_repository(config_path: Path, schema_path: Path) -> None:
-    """Validate configuration resources and committed schema freshness."""
+def validate_configuration(config_path: Path) -> None:
+    """Validate one automation configuration and its referenced resources."""
 
     load_configuration(config_path)
-
-    try:
-        committed_schema = schema_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as error:
-        raise ConfigurationError(f"unable to read {schema_path}: {error}") from error
-
-    if committed_schema != schema_text():
-        raise ConfigurationError(f"stale generated schema: {schema_path}")
