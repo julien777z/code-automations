@@ -18,7 +18,6 @@ class TestConfiguration:
 
     def test_valid_nested_configuration_renders_deterministically(self, automation_config_path: Path) -> None:
         """Resolve nested fragments and preserve rendering order."""
-
         loaded = load_configuration(automation_config_path)
         target = find_target(loaded, "owner/repository", "hello-world")
 
@@ -34,7 +33,6 @@ class TestConfiguration:
         self, automation_config_path: Path
     ) -> None:
         """Load an explicit repository with environment, branch, attempts, and schedule fields."""
-
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
             configuration.replace("self:", "owner/repository:")
@@ -60,7 +58,6 @@ class TestConfiguration:
 
     def test_missing_fragment_is_rejected(self, automation_config_path: Path) -> None:
         """Reject a missing prompt or skill file."""
-
         (automation_config_path.parent / "skills/examples/concise.md").unlink()
 
         with pytest.raises(ConfigurationError, match="missing or non-regular"):
@@ -72,7 +69,6 @@ class TestConfiguration:
     )
     def test_unsafe_references_are_rejected(self, automation_config_path: Path, reference: str) -> None:
         """Reject traversal, absolute, backslash, suffix, and empty path segments."""
-
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
             configuration.replace("examples/hello-world", reference),
@@ -84,7 +80,6 @@ class TestConfiguration:
 
     def test_symlink_escape_is_rejected(self, automation_config_path: Path) -> None:
         """Reject a reference whose symlink resolves outside its fragment directory."""
-
         root = automation_config_path.parent
         outside = root / "outside.md"
         outside.write_text("External.\n", encoding="utf-8")
@@ -102,7 +97,6 @@ class TestConfiguration:
 
     def test_fragment_directory_symlink_escape_is_rejected(self, automation_config_path: Path) -> None:
         """Reject a prompt directory that resolves outside the repository root."""
-
         root = automation_config_path.parent
         external = root.parent / f"{root.name}-external"
         external_examples = external / "examples"
@@ -120,7 +114,6 @@ class TestConfiguration:
 
     def test_non_utf8_empty_and_non_regular_fragments_are_rejected(self, tmp_path: Path) -> None:
         """Reject invalid fragment content and file types."""
-
         directory = tmp_path / "prompts"
         directory.mkdir()
         invalid = directory / "invalid.md"
@@ -142,7 +135,6 @@ class TestConfiguration:
 
     def test_malformed_yaml_is_rejected(self, tmp_path: Path) -> None:
         """Reject malformed YAML."""
-
         config_path = tmp_path / "automations.yaml"
         config_path.write_text("repositories: [\n", encoding="utf-8")
 
@@ -151,7 +143,6 @@ class TestConfiguration:
 
     def test_unknown_fields_are_rejected(self, automation_config_path: Path) -> None:
         """Reject fields outside the strict schema."""
-
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
             configuration.replace("    branch", "    unexpected: true\n    branch"),
@@ -163,7 +154,6 @@ class TestConfiguration:
 
     def test_duplicate_global_names_are_rejected(self, automation_config_path: Path) -> None:
         """Reject automation names repeated across repositories."""
-
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
             configuration
@@ -180,7 +170,6 @@ class TestConfiguration:
 
     def test_duplicate_yaml_mapping_keys_are_rejected(self, automation_config_path: Path) -> None:
         """Reject keys that PyYAML would otherwise silently overwrite."""
-
         automation_config_path.write_text(
             """version: 1
 repositories:
@@ -230,7 +219,6 @@ repositories:
         self, automation_config_path: Path, old: str, new: str
     ) -> None:
         """Reject invalid repository, branch, environment, attempts, cron, and timezone values."""
-
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(configuration.replace(old, new), encoding="utf-8")
 
@@ -240,7 +228,6 @@ repositories:
     @pytest.mark.parametrize("cron", ["0 0 L * *", "0 0 ? * *", "0 0 * * 5#3", "*/61 * * * *"])
     def test_croniter_extensions_are_rejected(self, automation_config_path: Path, cron: str) -> None:
         """Reject non-POSIX cron extensions accepted by croniter."""
-
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
             configuration.replace(
@@ -258,7 +245,6 @@ repositories:
 
     def test_stale_schema_is_rejected(self, automation_config_path: Path) -> None:
         """Reject a committed schema that differs from the generated model schema."""
-
         schema_path = automation_config_path.parent / "automations.schema.json"
         schema_path.write_text("{}\n", encoding="utf-8")
 

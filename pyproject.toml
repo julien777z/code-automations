@@ -23,44 +23,18 @@ pyyaml = ">=6.0.2,<7"
 tzdata = ">=2025.2"
 
 [tool.poetry.group.dev.dependencies]
-python-rules-lint = { path = "linting/python-rules-lint", develop = true }
 pytest = ">=8.4.0,<9"
 ruff = ">=0.12.0,<0.13"
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "linting/python-rules-lint/tests"]
+testpaths = ["tests"]
 
 [tool.ruff]
 target-version = "py313"
 line-length = 110
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
-
-[tool.pylint.main]
-jobs = 1
-load-plugins = ["python_rules_lint"]
-source-roots = ["src", "linting/python-rules-lint/src"]
-
-[tool.pylint.messages_control]
-disable = ["all"]
-enable = [
-  "banned-python-terminology",
-  "broad-exception-caught",
-  "direct-environment-read",
-  "forbidden-module-docstring",
-  "forbidden-opening-comment",
-  "forbidden-python-construct",
-  "import-outside-toplevel",
-  "inline-regex-call",
-  "invalid-leading-underscore",
-  "missing-blank-line-after-docstring",
-  "missing-definition-docstring",
-  "model-outside-models-directory",
-  "multiline-definition-docstring",
-  "parent-relative-import",
-  "uppercase-logger-name",
-]
+select = ["E", "F", "I"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]

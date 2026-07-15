@@ -1,25 +1,20 @@
 import re
 import subprocess
 from collections.abc import Callable
+from pathlib import Path
 from typing import Final
 
-from cloud_automations.errors import DispatchError
-from cloud_automations.models.configuration import AutomationTarget, LoadedConfiguration
-from cloud_automations.models.dispatching import (
-    DispatchOutcome,
-    ScheduledDispatch,
-    SubmissionRequest,
-    SubmissionResult,
-    SubmittedAutomation,
-)
-from cloud_automations.rendering import render_target
-from cloud_automations.state import save_state
+from pydantic import BaseModel, ConfigDict, HttpUrl
 
-TASK_URL_PATTERN: Final[re.Pattern[str]] = re.compile(r"https://chatgpt\.com/codex/tasks/[A-Za-z0-9_-]+")
+from cloud_automations.configuration import AutomationTarget, LoadedConfiguration
+from cloud_automations.errors import DispatchError
+from cloud_automations.models import AutomationState
+from cloud_automations.rendering import render_target
+from cloud_automations.scheduling import DueAutomation
+from cloud_automations.state import save_state
 
 __all__: Final[tuple[str, ...]] = (
     "DispatchOutcome",
-    "ScheduledDispatch",
     "SubmittedAutomation",
     "SubmissionRequest",
     "SubmissionResult",
@@ -30,12 +25,46 @@ __all__: Final[tuple[str, ...]] = (
 )
 
 
+class SubmissionRequest(BaseModel):
+    """Describe one Codex Cloud submission."""
+
+    model_config = ConfigDict(frozen=True)
+
+    target: AutomationTarget
+    prompt: str
+
+
+class SubmissionResult(BaseModel):
+    """Capture a submitted Codex Cloud task URL."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    task_url: HttpUrl
+
+
 type Submitter = Callable[[SubmissionRequest], SubmissionResult]
+
+
+class SubmittedAutomation(BaseModel):
+    """Pair a submitted automation with its task result."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    result: SubmissionResult
+
+
+class DispatchOutcome(BaseModel):
+    """Collect successful submissions and failures."""
+
+    model_config = ConfigDict(frozen=True)
+
+    submissions: list[SubmittedAutomation]
+    failures: list[str]
 
 
 def submit_cloud_task(request: SubmissionRequest) -> SubmissionResult:
     """Submit one asynchronous Codex Cloud task."""
-
     result = subprocess.run(
         [
             "codex",
@@ -61,7 +90,7 @@ def submit_cloud_task(request: SubmissionRequest) -> SubmissionResult:
 
     output = result.stdout.strip()
 
-    if not TASK_URL_PATTERN.fullmatch(output):
+    if not re.fullmatch(r"https://chatgpt\.com/codex/tasks/[A-Za-z0-9_-]+", output):
         raise DispatchError("codex cloud exec did not return a task URL")
 
     return SubmissionResult(task_url=output)
@@ -71,30 +100,29 @@ def dispatch_target(
     loaded: LoadedConfiguration, target: AutomationTarget, submitter: Submitter = submit_cloud_task
 ) -> SubmissionResult:
     """Render and submit one manual automation."""
-
     return submitter(SubmissionRequest(target=target, prompt=render_target(loaded, target)))
 
 
 def dispatch_due(
-    scheduled_dispatch: ScheduledDispatch,
+    loaded: LoadedConfiguration,
+    due: list[DueAutomation],
+    state: AutomationState,
+    state_path: Path,
     submitter: Submitter = submit_cloud_task,
 ) -> DispatchOutcome:
     """Submit due automations and advance state only on accepted tasks."""
-
     submissions: list[SubmittedAutomation] = []
     failures: list[str] = []
 
-    for item in scheduled_dispatch.due:
+    for item in due:
         try:
-            result = dispatch_target(scheduled_dispatch.loaded, item.target, submitter)
+            result = dispatch_target(loaded, item.target, submitter)
         except DispatchError as error:
             failures.append(f"{item.target.name}: {error}")
             continue
 
-        scheduled_dispatch.state.successful[item.target.name] = item.scheduled_for
-
-        save_state(scheduled_dispatch.state_path, scheduled_dispatch.state)
-
+        state.successful[item.target.name] = item.scheduled_for
+        save_state(state_path, state)
         submissions.append(SubmittedAutomation(name=item.target.name, result=result))
 
     return DispatchOutcome(submissions=submissions, failures=failures)

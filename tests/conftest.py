@@ -8,12 +8,10 @@ from cloud_automations.configuration import LoadedConfiguration, load_configurat
 @pytest.fixture
 def automation_config_path(tmp_path: Path) -> Path:
     """Provide a valid automation configuration file."""
-
     prompt = tmp_path / "prompts/examples/hello-world.md"
     skill = tmp_path / "skills/examples/concise.md"
     prompt.parent.mkdir(parents=True)
     skill.parent.mkdir(parents=True)
-
     prompt.write_text("Say hello.\n", encoding="utf-8")
     skill.write_text("Be concise.\n", encoding="utf-8")
 
@@ -38,10 +36,8 @@ repositories:
 @pytest.fixture
 def scheduled_configuration(tmp_path: Path) -> LoadedConfiguration:
     """Provide a scheduled automation configuration."""
-
     prompt = tmp_path / "prompts/examples/task.md"
     prompt.parent.mkdir(parents=True)
-
     prompt.write_text("Run the task.\n", encoding="utf-8")
 
     config_path = tmp_path / "automations.yaml"
