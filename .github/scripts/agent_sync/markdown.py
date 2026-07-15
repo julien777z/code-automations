@@ -22,7 +22,6 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
-
 SAFE_SLUG_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 NON_ALPHANUMERIC_PATTERN: Final[re.Pattern[str]] = re.compile(r"[^a-zA-Z0-9]+")
 
