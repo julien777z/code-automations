@@ -209,6 +209,8 @@ config = third_party_package.Config(
 
 - Define constants at the top of the file, after imports.
 - Place module-level constants and enums (including type aliases like `AllowedApiClient`) directly after imports.
+- Compile regular expressions once at module scope directly after imports, then call methods on the compiled pattern.
+- Do not pass regex patterns inline to functions such as `re.match`, `re.search`, `re.fullmatch`, `re.sub`, or similar helpers.
 - Use `Final[T]` type annotation from `typing` for constants.
 - When a mutable object is annotated with `Final`, complete any setup-time mutation in the same expression as initialization instead of binding it first and mutating it on the next line.
 - Use UPPER_SNAKE_CASE naming convention for constants.

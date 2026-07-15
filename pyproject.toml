@@ -52,6 +52,7 @@ enable = [
   "forbidden-opening-comment",
   "forbidden-python-construct",
   "import-outside-toplevel",
+  "inline-regex-call",
   "invalid-leading-underscore",
   "missing-blank-line-after-docstring",
   "missing-definition-docstring",

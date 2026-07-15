@@ -14,6 +14,7 @@ CUSTOM_MESSAGES: Final[str] = ",".join(
         "forbidden-module-docstring",
         "forbidden-opening-comment",
         "forbidden-python-construct",
+        "inline-regex-call",
         "invalid-leading-underscore",
         "missing-blank-line-after-docstring",
         "missing-definition-docstring",
@@ -194,6 +195,26 @@ class Request(BaseModel):
     return source_path
 
 
+@pytest.fixture
+def invalid_regex_source(tmp_path: Path) -> Path:
+    """Create source with an inline regular expression call."""
+
+    source_path = tmp_path / "matching.py"
+    source_path.write_text(
+        '''import re
+
+
+def matches(value: str) -> bool:
+    """Return whether a value matches."""
+
+    return re.fullmatch(r"[a-z]+", value) is not None
+''',
+        encoding="utf-8",
+    )
+
+    return source_path
+
+
 class TestPythonRulesChecker:
     """Verify the shared checker through Pylint's public interface."""
 
@@ -236,6 +257,13 @@ class TestPythonRulesChecker:
 
         assert ("uppercase-logger-name", 4) in messages
         assert ("model-outside-models-directory", 7) in messages
+
+    def test_reports_inline_regex_call(self, invalid_regex_source: Path) -> None:
+        """Report regular expressions passed to module-level helpers."""
+
+        result = run_pylint(invalid_regex_source)
+
+        assert ("inline-regex-call", 7) in reported_messages(result)
 
     def test_loads_from_root_configuration(self, valid_package: Path) -> None:
         """Load the plugin and allowlist from the consumer configuration."""

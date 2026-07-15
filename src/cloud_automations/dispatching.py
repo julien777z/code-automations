@@ -15,6 +15,8 @@ from cloud_automations.models.dispatching import (
 from cloud_automations.rendering import render_target
 from cloud_automations.state import save_state
 
+TASK_URL_PATTERN: Final[re.Pattern[str]] = re.compile(r"https://chatgpt\.com/codex/tasks/[A-Za-z0-9_-]+")
+
 __all__: Final[tuple[str, ...]] = (
     "DispatchOutcome",
     "ScheduledDispatch",
@@ -59,7 +61,7 @@ def submit_cloud_task(request: SubmissionRequest) -> SubmissionResult:
 
     output = result.stdout.strip()
 
-    if not re.fullmatch(r"https://chatgpt\.com/codex/tasks/[A-Za-z0-9_-]+", output):
+    if not TASK_URL_PATTERN.fullmatch(output):
         raise DispatchError("codex cloud exec did not return a task URL")
 
     return SubmissionResult(task_url=output)

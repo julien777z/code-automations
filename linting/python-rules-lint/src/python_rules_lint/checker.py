@@ -13,6 +13,20 @@ type MessageDefinition = tuple[str, str, str]
 
 __all__: Final[tuple[str, ...]] = ("PythonRulesChecker", "register")
 
+CAMEL_CASE_BOUNDARY_PATTERN: Final[re.Pattern[str]] = re.compile(r"([a-z0-9])([A-Z])")
+INLINE_REGEX_METHODS: Final[frozenset[str]] = frozenset(
+    {
+        "re.findall",
+        "re.finditer",
+        "re.fullmatch",
+        "re.match",
+        "re.search",
+        "re.split",
+        "re.sub",
+        "re.subn",
+    }
+)
+
 
 class RuleConfig(TypedDict):
     """Define the mechanically enforceable Python rule configuration."""
@@ -25,20 +39,19 @@ RULE_CONFIG: Final[RuleConfig] = RuleConfig(
     prohibited_constructs=frozenset({"Any", "Protocol", "cast", "dataclass", "print"}),
     banned_terminology=("best effort", "seed", "seeds", "seeding"),
 )
+BANNED_TERMINOLOGY_PATTERNS: Final[tuple[tuple[str, re.Pattern[str]], ...]] = tuple(
+    (term, re.compile(rf"\b{re.escape(term)}\b")) for term in RULE_CONFIG["banned_terminology"]
+)
 
 
 def banned_terminology(value: str) -> str | None:
     """Return the first banned term found in prose or an identifier."""
 
-    separated_camel_case = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", value)
+    separated_camel_case = CAMEL_CASE_BOUNDARY_PATTERN.sub(r"\1 \2", value)
     normalized = separated_camel_case.replace("_", " ").replace("-", " ").lower()
 
     return next(
-        (
-            term
-            for term in RULE_CONFIG["banned_terminology"]
-            if re.search(rf"\b{re.escape(term)}\b", normalized)
-        ),
+        (term for term, pattern in BANNED_TERMINOLOGY_PATTERNS if pattern.search(normalized)),
         None,
     )
 
@@ -113,6 +126,11 @@ class PythonRulesChecker(BaseChecker):
             "Logger instances must use the lowercase name logger",
             "uppercase-logger-name",
             "Logger instances are runtime collaborators rather than constants.",
+        ),
+        "C9513": (
+            "Inline regex call %s is not allowed",
+            "inline-regex-call",
+            "Regular expressions must be compiled once at module scope.",
         ),
     }
 
@@ -206,8 +224,13 @@ class PythonRulesChecker(BaseChecker):
     def visit_call(self, node: nodes.Call) -> None:
         """Check direct environment function calls."""
 
-        if node.func.as_string() == "os.getenv":
+        function_name = node.func.as_string()
+
+        if function_name == "os.getenv":
             self.add_message("direct-environment-read", node=node, args=("os.getenv",))
+
+        if function_name in INLINE_REGEX_METHODS:
+            self.add_message("inline-regex-call", node=node, args=(function_name,))
 
     def visit_importfrom(self, node: nodes.ImportFrom) -> None:
         """Check imported constructs and parent-relative imports."""

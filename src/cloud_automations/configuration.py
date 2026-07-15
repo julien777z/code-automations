@@ -16,6 +16,10 @@ from cloud_automations.models.configuration import (
     LoadedConfiguration,
 )
 
+GITHUB_ORIGIN_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"github\.com(?::|/)([A-Za-z0-9._-]+/[A-Za-z0-9._-]+?)(?:\.git)?$"
+)
+
 type FragmentDirectory = Literal["prompts", "skills"]
 
 __all__: Final[tuple[str, ...]] = (
@@ -128,9 +132,7 @@ def resolve_self_repository(root: Path, github_repository: str | None = None) ->
     if result.returncode != 0:
         raise ConfigurationError("self requires GITHUB_REPOSITORY or a GitHub origin remote")
 
-    match = re.search(
-        r"github\.com(?::|/)([A-Za-z0-9._-]+/[A-Za-z0-9._-]+?)(?:\.git)?$", result.stdout.strip()
-    )
+    match = GITHUB_ORIGIN_PATTERN.search(result.stdout.strip())
 
     if match is None or not REPOSITORY_PATTERN.fullmatch(match.group(1)):
         raise ConfigurationError("origin is not a supported GitHub repository URL")

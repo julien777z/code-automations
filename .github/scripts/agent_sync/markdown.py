@@ -24,6 +24,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 SAFE_SLUG_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+NON_ALPHANUMERIC_PATTERN: Final[re.Pattern[str]] = re.compile(r"[^a-zA-Z0-9]+")
 
 
 class FrontMatterDumper(yaml.SafeDumper):
@@ -143,7 +144,7 @@ def normalize_text(value: str) -> str:
 def slug_to_codex_name(slug: str) -> str:
     """Convert a canonical slug into a Codex-compatible name."""
 
-    normalized = re.sub(r"[^a-zA-Z0-9]+", "-", slug).strip("-").lower()
+    normalized = NON_ALPHANUMERIC_PATTERN.sub("-", slug).strip("-").lower()
 
     return normalized or slug
 
