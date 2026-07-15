@@ -26,11 +26,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-
-      - name: Install dependencies
-        run: python -m pip install "pydantic>=2.0.0,<3" "pyyaml>=6.0.0"
+      - uses: ./.github/actions/setup-env
 
       - name: Run agent sync tests
         working-directory: .github/scripts
@@ -38,11 +34,11 @@ jobs:
 
       - name: Validate canonical agent configuration
         working-directory: .github/scripts
-        run: python -m agent_sync.main validate
+        run: poetry run python -m agent_sync.main validate
 
       - name: Run agent sync
         working-directory: .github/scripts
-        run: python -m agent_sync.main sync
+        run: poetry run python -m agent_sync.main sync
 
       - name: Commit and push generated changes
         shell: bash
@@ -70,4 +66,4 @@ jobs:
 
       - name: Verify sync idempotence
         working-directory: .github/scripts
-        run: python -m agent_sync.main sync --dry-run
+        run: poetry run python -m agent_sync.main sync --dry-run

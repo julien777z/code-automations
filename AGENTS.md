@@ -8,20 +8,38 @@ The canonical project rules live in `.agents/rules/`.
 
 # GitHub Rules
 
-## Branch Safety
+## Workflows
 
-- Never commit or push agent-authored changes directly to the repository's default branch. If the current branch is the default branch or HEAD is detached, create a new descriptive non-default branch before editing; otherwise retain the existing non-default branch. Deliver changes through that branch and a pull request.
+- Do not hard-code runtime versions when a shared action, reusable workflow, or repository version file supplies them; omit `python-version` when shared Python automation provides it, and use `node-version-file: ".nvmrc"` for Node.js workflows.
+- Add an explanatory comment when an edge case requires an explicit version override.
+- Use version-tagged GitHub Actions such as `actions/checkout@v4` and `actions/setup-python@v5`, not full commit SHAs.
 
-## Configuration Options
+## Branches and Pull Requests
 
-- Do not manually specify options like `python-version` in workflows.
-- Use the defaults from shared actions or reusable workflows unless there is a specific edge case requiring a different version.
-- If an edge case requires a specific version, add a comment explaining why.
+- Keep pull requests focused and give them descriptive titles and descriptions; request appropriate reviewers when the repository workflow requires them.
+- When additional work arrives on a non-default branch, retain that branch and add the work to its pull request even when the task could be reviewed independently.
+- Query the current branch's pull request before creating one. Reuse it while it is open, or create one from the current branch when none exists.
+- Create a separate branch only when the user asks or the current branch's pull request is already merged; start post-merge work from the default branch.
 
-## Action Versions
+## Commits
 
-- Use version-tagged GitHub Actions such as `actions/checkout@v4` and `actions/setup-python@v5`.
-- Do not pin actions to full commit SHAs.
+- Use conventional commit messages when applicable and keep commits atomic and focused.
+- Do not commit generated files unless the repository explicitly requires them.
+
+## Guardrails
+
+- Never commit or push agent-authored changes directly to the default branch. If the checkout is on the default branch or detached, create a descriptive non-default branch; otherwise retain the current branch and deliver through its pull request.
+
+## Dependency Installation
+
+- Declare project dependencies used by workflows in the repository's dependency manifests and commit their lockfiles.
+- Run project-level installation commands such as `poetry install` or `npm install` in workflows.
+- Do not install individual project packages or embed their versions directly in workflow commands.
+
+## README Titles
+
+- Write the top-level heading in every `README.md` in title case.
+- Convert slug-style project names into readable words, such as `example-service` becoming `Example Service`.
 
 <!-- Source: .agents/rules/python.md -->
 
@@ -56,6 +74,18 @@ The canonical project rules live in `.agents/rules/`.
 - Inside an entity package, do not repeat the entity in module names: `resource/sync.py`, never `resource/resource_sync.py`.
 - Compound nouns that name a single concept are one entity, not two — `access_control.py`, `request_metadata.py`, and `audit_trail.py` are all fine.
 - When the entity package needs a module for its primary/orchestration surface, name it after the package (`resource/resource.py`) with an empty `__init__.py`; consumers import the specific submodule.
+
+## Utility Placement
+
+- Place generic, stateless, cross-cutting helpers in a `utils.py` module or `utils/` package.
+- Use a `utils.py` module for a small cohesive set of utilities; use a `utils/` package when separate focused utility modules are warranted.
+- Keep domain and orchestration behavior in their owning modules. Do not use utilities as a dumping ground.
+
+## Model Placement
+
+- Define Pydantic `BaseModel` classes and other application data models under the package's `models/` directory.
+- Split models into intuitively named files by concept, such as `models/configuration.py` or `models/submission.py`.
+- Do not place models beside operational code or collect unrelated models in a catch-all `models.py` module.
 
 ## Modern Syntax
 
@@ -225,6 +255,8 @@ config = third_party_package.Config(
 
 - Define constants at the top of the file, after imports.
 - Place module-level constants and enums (including type aliases like `AllowedApiClient`) directly after imports.
+- Compile regular expressions once at module scope directly after imports, then call methods on the compiled pattern.
+- Do not pass regex patterns inline to functions such as `re.match`, `re.search`, `re.fullmatch`, `re.sub`, or similar helpers.
 - Use `Final[T]` type annotation from `typing` for constants.
 - When a mutable object is annotated with `Final`, complete any setup-time mutation in the same expression as initialization instead of binding it first and mutating it on the next line.
 - Use UPPER_SNAKE_CASE naming convention for constants.
@@ -237,6 +269,7 @@ config = third_party_package.Config(
 - A group of related **configuration values** (API hosts, endpoint paths, protocol versions, header tokens, feature markers, default model names, timeouts) is not a set of constants — collect it into a **single typed config map**, not one `Final` per value.
 - Model the map with a `TypedDict` and build it by **calling** the constructor with keyword arguments (`CONFIG: Final[ReviewConfig] = ReviewConfig(...)`), then read values by key (`CONFIG["routine_host"]`). Do not annotate a plain dict literal.
 - Reserve standalone `Final` constants for genuinely single, unrelated constants — a compiled regex, a file path, a sentinel — that do not belong to a config group.
+- Logger instances are runtime collaborators, not constants. Name them `logger`, never `LOGGER`, and do not annotate them as `Final`.
 - This is about grouping; it does not override the **Configuration** section below. Environment-backed values, or values that belong in the repository's central settings layer, still go there — not in a module-level map.
 
 ```python

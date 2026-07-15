@@ -1,0 +1,9 @@
+version: 1
+repositories:
+  self:
+    branch: main
+    automations:
+      hello-world:
+        prompt: examples/hello-world
+        skills:
+          - examples/concise
