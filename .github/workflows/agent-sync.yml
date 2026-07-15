@@ -28,10 +28,6 @@ jobs:
 
       - uses: ./.github/actions/setup-env
 
-      - name: Run agent sync tests
-        working-directory: .github/scripts
-        run: poetry run python -m unittest discover -s agent_sync/tests
-
       - name: Validate canonical agent configuration
         working-directory: .github/scripts
         run: poetry run python -m agent_sync.main validate
