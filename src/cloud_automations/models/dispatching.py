@@ -1,19 +1,38 @@
+from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, HttpUrl
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl
 
 from cloud_automations.models.configuration import AutomationTarget, LoadedConfiguration
-from cloud_automations.models.scheduling import DueAutomation
-from cloud_automations.models.state import AutomationState
 
 __all__: Final[tuple[str, ...]] = (
+    "AutomationState",
     "DispatchOutcome",
+    "DueAutomation",
     "ScheduledDispatch",
     "SubmittedAutomation",
     "SubmissionRequest",
     "SubmissionResult",
 )
+
+
+class AutomationState(BaseModel):
+    """Track successful scheduled submissions."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    version: Literal[1] = 1
+    successful: dict[str, AwareDatetime] = Field(default_factory=dict)
+
+
+class DueAutomation(BaseModel):
+    """Describe one due scheduled automation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    target: AutomationTarget
+    scheduled_for: datetime
 
 
 class SubmissionRequest(BaseModel):

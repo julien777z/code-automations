@@ -6,7 +6,7 @@ from pydantic import BaseModel, ValidationError
 from agent_sync.exceptions import AgentSyncConfigError
 from agent_sync.markdown import validate_slug
 from agent_sync.models.providers.claude import ClaudeSettings
-from agent_sync.models.providers.codex import DEFAULT_PROJECT_DOC_MAX_BYTES, CodexSettings
+from agent_sync.models.providers.codex import CodexSettings
 from agent_sync.models.providers.cursor import CursorSettings
 from agent_sync.models.settings import (
     AgentModelOverride,
@@ -27,8 +27,7 @@ def load_settings(workspace: Workspace) -> AgentSyncSettings:
 
     return AgentSyncSettings(
         claude=load_model(workspace.settings / "claude.json", ClaudeSettings),
-        codex=load_model(workspace.settings / "codex.json", CodexSettings, required_valid=True)
-        or CodexSettings(project_doc_max_bytes=DEFAULT_PROJECT_DOC_MAX_BYTES),
+        codex=load_model(workspace.settings / "codex.json", CodexSettings, required_valid=True),
         cursor=load_model(workspace.settings / "cursor.json", CursorSettings),
     )
 

@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from cloud_automations.configuration import LoadedConfiguration, load_configuration
+from cloud_automations.configuration import load_configuration
+from cloud_automations.models.configuration import LoadedConfiguration
 
 
 @pytest.fixture

@@ -17,7 +17,6 @@ class OutputKind(StrEnum):
     CLAUDE_RULE = "claude_rule"
     CLAUDE_SETTINGS = "claude_settings"
     CLAUDE_SKILL = "claude_skill"
-    CODEX_INSTRUCTIONS = "codex_instructions"
     CODEX_RULE = "codex_rule"
     CODEX_SETTINGS = "codex_settings"
     CODEX_SKILL = "codex_skill"
@@ -27,6 +26,7 @@ class OutputKind(StrEnum):
     CURSOR_HOOK = "cursor_hook"
     CURSOR_RULE = "cursor_rule"
     CURSOR_SKILL = "cursor_skill"
+    UNIVERSAL_AGENT_INSTRUCTIONS = "universal_agent_instructions"
 
 
 class OutputFile(BaseModel):

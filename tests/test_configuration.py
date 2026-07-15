@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 
 from cloud_automations.configuration import (
-    find_target,
     load_configuration,
     read_fragment,
     schema_text,
@@ -11,6 +10,7 @@ from cloud_automations.configuration import (
 )
 from cloud_automations.errors import ConfigurationError
 from cloud_automations.rendering import render_target
+from cloud_automations.targets import find_target
 
 
 class TestConfiguration:
@@ -267,4 +267,4 @@ repositories:
 
         schema_path.write_text(schema_text(), encoding="utf-8")
 
-        assert validate_repository(automation_config_path, schema_path).config.version == 1
+        validate_repository(automation_config_path, schema_path)

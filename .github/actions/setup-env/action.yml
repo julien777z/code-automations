@@ -1,5 +1,5 @@
 name: Set Up Environment
-description: Set up Python and Poetry, then run an optional setup command.
+description: Set up Python, Poetry, and project dependencies.
 
 inputs:
   python-version:
@@ -10,11 +10,6 @@ inputs:
     description: Poetry version to install
     required: false
     default: "2.2.0"
-  post_setup_command:
-    description: Command to run after setup
-    required: false
-    default: ""
-
 runs:
   using: composite
   steps:
@@ -32,7 +27,6 @@ runs:
       run: |
         python --version
         poetry --version
-    - name: Run Specified Command
-      if: inputs.post_setup_command != ''
+    - name: Install Project Dependencies
       shell: bash
-      run: ${{ inputs.post_setup_command }}
+      run: poetry install

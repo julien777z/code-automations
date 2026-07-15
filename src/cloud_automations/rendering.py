@@ -1,6 +1,7 @@
 from typing import Final
 
-from cloud_automations.configuration import AutomationTarget, LoadedConfiguration, read_fragment
+from cloud_automations.configuration import read_fragment
+from cloud_automations.models.configuration import AutomationTarget, LoadedConfiguration
 
 __all__: Final[tuple[str, ...]] = ("render_target",)
 
