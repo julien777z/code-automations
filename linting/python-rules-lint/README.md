@@ -1,4 +1,4 @@
-# python-rules-lint
+# Python Rules Lint
 
 Reusable Pylint checks for mechanically enforceable Python conventions.
 

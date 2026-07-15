@@ -1,4 +1,4 @@
-# cloud-automations
+# Cloud Automations
 
 Run reusable Codex Cloud prompts from GitHub Actions.
 

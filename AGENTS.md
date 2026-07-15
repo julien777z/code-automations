@@ -29,6 +29,11 @@ The canonical project rules live in `.agents/rules/`.
 - Run project-level installation commands such as `poetry install` or `npm install` in workflows.
 - Do not install individual project packages or embed their versions directly in workflow commands.
 
+## README Titles
+
+- Write the top-level heading in every `README.md` in title case.
+- Convert slug-style project names into readable words, such as `example-service` becoming `Example Service`.
+
 <!-- Source: .agents/rules/python.md -->
 
 # Python Rules
