@@ -66,11 +66,17 @@ runs:
       env:
         CONFIG_PATH: ${{ inputs.config-path }}
       run: cloud-automations --config "$GITHUB_WORKSPACE/$CONFIG_PATH" validate
+    - name: Read Node version
+      id: node-version
+      if: inputs.mode == 'dispatch'
+      shell: bash
+      run: printf 'value=%s\n' "$(< "$GITHUB_ACTION_PATH/.nvmrc")" >> "$GITHUB_OUTPUT"
     - name: Set up Node
       if: inputs.mode == 'dispatch'
       uses: actions/setup-node@v4
       with:
-        node-version-file: ${{ github.action_path }}/.nvmrc
+        # setup-node resolves node-version-file against the caller workspace, not GITHUB_ACTION_PATH.
+        node-version: ${{ steps.node-version.outputs.value }}
     - name: Install Codex CLI
       if: inputs.mode == 'dispatch'
       shell: bash
