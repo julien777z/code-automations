@@ -42,7 +42,7 @@ jobs:
           else
             printf '{"version":1,"successful":{}}\n' > "$RUNNER_TEMP/state.json"
           fi
-      - name: Materialize Codex authentication
+      - name: Set up task authentication
         env:
           CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
         run: |
@@ -63,9 +63,6 @@ jobs:
           else
             poetry run cloud-automations dispatch --scheduled --state "$RUNNER_TEMP/state.json"
           fi
-      - name: Remove Codex authentication
-        if: always()
-        run: rm -rf "${CODEX_HOME:-$RUNNER_TEMP/codex-home}"
       - name: Persist state
         if: always() && github.event_name == 'schedule'
         run: |
