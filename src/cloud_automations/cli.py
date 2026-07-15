@@ -1,7 +1,6 @@
 import argparse
 import logging
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
@@ -26,24 +25,11 @@ from cloud_automations.models.runtime import GitHubRuntime
 from cloud_automations.rendering import render_target
 from cloud_automations.scheduling import DueAutomation, due_automations
 from cloud_automations.state import load_state
+from cloud_automations.utils import parse_datetime
 
 __all__: Final[tuple[str, ...]] = ("main",)
 
 logger = logging.getLogger(__name__)
-
-
-def parse_datetime(value: str | None) -> datetime:
-    """Parse an aware ISO timestamp or return the current UTC instant."""
-
-    if value is None:
-        return datetime.now(UTC)
-
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-
-    if parsed.tzinfo is None:
-        raise ConfigurationError("timestamps must include a timezone offset")
-
-    return parsed
 
 
 def write_summary(path: Path | None, submission: SubmittedAutomation) -> None:
