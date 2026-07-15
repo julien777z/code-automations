@@ -30,7 +30,7 @@ jobs:
 
       - name: Run agent sync tests
         working-directory: .github/scripts
-        run: python -m unittest discover -s agent_sync/tests
+        run: poetry run python -m unittest discover -s agent_sync/tests
 
       - name: Validate canonical agent configuration
         working-directory: .github/scripts
