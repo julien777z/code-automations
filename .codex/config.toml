@@ -1,5 +1,5 @@
 # >>> agent-sync managed Codex settings >>>
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
-project_doc_max_bytes = 38606
+project_doc_max_bytes = 40252
 # <<< agent-sync managed Codex settings <<<

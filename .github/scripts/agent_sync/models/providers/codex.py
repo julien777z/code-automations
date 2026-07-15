@@ -13,7 +13,5 @@ class CodexSettings(ProviderSettings):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     approval_policy: Literal["untrusted", "on-request", "never"] = "never"
-    sandbox_mode: Literal["read-only", "workspace-write", "danger-full-access"] = (
-        "danger-full-access"
-    )
+    sandbox_mode: Literal["read-only", "workspace-write", "danger-full-access"] = "danger-full-access"
     project_doc_max_bytes: int = Field(gt=0)

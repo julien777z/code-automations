@@ -35,6 +35,18 @@ alwaysApply: true
 - Compound nouns that name a single concept are one entity, not two — `access_control.py`, `request_metadata.py`, and `audit_trail.py` are all fine.
 - When the entity package needs a module for its primary/orchestration surface, name it after the package (`resource/resource.py`) with an empty `__init__.py`; consumers import the specific submodule.
 
+## Utility Placement
+
+- Place generic, stateless, cross-cutting helpers in a `utils.py` module or `utils/` package.
+- Use a `utils.py` module for a small cohesive set of utilities; use a `utils/` package when separate focused utility modules are warranted.
+- Keep domain and orchestration behavior in their owning modules. Do not use utilities as a dumping ground.
+
+## Model Placement
+
+- Define Pydantic `BaseModel` classes and other application data models under the package's `models/` directory.
+- Split models into intuitively named files by concept, such as `models/configuration.py` or `models/submission.py`.
+- Do not place models beside operational code or collect unrelated models in a catch-all `models.py` module.
+
 ## Modern Syntax
 
 - Use modern type hints: `str | None` instead of `Optional[str]`.
@@ -203,6 +215,8 @@ config = third_party_package.Config(
 
 - Define constants at the top of the file, after imports.
 - Place module-level constants and enums (including type aliases like `AllowedApiClient`) directly after imports.
+- Compile regular expressions once at module scope directly after imports, then call methods on the compiled pattern.
+- Do not pass regex patterns inline to functions such as `re.match`, `re.search`, `re.fullmatch`, `re.sub`, or similar helpers.
 - Use `Final[T]` type annotation from `typing` for constants.
 - When a mutable object is annotated with `Final`, complete any setup-time mutation in the same expression as initialization instead of binding it first and mutating it on the next line.
 - Use UPPER_SNAKE_CASE naming convention for constants.
@@ -215,6 +229,7 @@ config = third_party_package.Config(
 - A group of related **configuration values** (API hosts, endpoint paths, protocol versions, header tokens, feature markers, default model names, timeouts) is not a set of constants — collect it into a **single typed config map**, not one `Final` per value.
 - Model the map with a `TypedDict` and build it by **calling** the constructor with keyword arguments (`CONFIG: Final[ReviewConfig] = ReviewConfig(...)`), then read values by key (`CONFIG["routine_host"]`). Do not annotate a plain dict literal.
 - Reserve standalone `Final` constants for genuinely single, unrelated constants — a compiled regex, a file path, a sentinel — that do not belong to a config group.
+- Logger instances are runtime collaborators, not constants. Name them `logger`, never `LOGGER`, and do not annotate them as `Final`.
 - This is about grouping; it does not override the **Configuration** section below. Environment-backed values, or values that belong in the repository's central settings layer, still go there — not in a module-level map.
 
 ```python

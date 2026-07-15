@@ -54,7 +54,7 @@ class AuthoritativeOutputTests(unittest.TestCase):
             self.create_sources(root, include_codex_settings=False)
             config_path = root / ".codex" / "config.toml"
             config_path.parent.mkdir(parents=True)
-            config_path.write_text("model = \"manual\"\n", encoding="utf-8")
+            config_path.write_text('model = "manual"\n', encoding="utf-8")
 
             self.synchronize(root)
 
@@ -178,7 +178,7 @@ class AuthoritativeOutputTests(unittest.TestCase):
         config_path = root / ".codex" / "config.toml"
         config_path.parent.mkdir(parents=True)
         config_path.write_text(
-            "model = \"manual\"\n\n[mcp_servers.manual]\nurl = \"https://example.invalid\"\n",
+            'model = "manual"\n\n[mcp_servers.manual]\nurl = "https://example.invalid"\n',
             encoding="utf-8",
         )
 

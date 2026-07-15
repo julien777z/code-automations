@@ -1,7 +1,7 @@
 import logging
 import re
 from pathlib import Path
-from typing import Final, TypeVar
+from typing import Final
 
 import yaml
 from pydantic import BaseModel, ValidationError
@@ -23,7 +23,7 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 SAFE_SLUG_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
-FrontMatterModel = TypeVar("FrontMatterModel", bound=BaseModel)
+NON_ALPHANUMERIC_PATTERN: Final[re.Pattern[str]] = re.compile(r"[^a-zA-Z0-9]+")
 
 
 class FrontMatterDumper(yaml.SafeDumper):
@@ -41,7 +41,10 @@ def represent_multiline_str(dumper: yaml.SafeDumper, value: str) -> yaml.ScalarN
 FrontMatterDumper.add_representer(str, represent_multiline_str)
 
 
-def parse_markdown_file(path: Path, model: type[FrontMatterModel]) -> tuple[FrontMatterModel, str]:
+def parse_markdown_file[FrontMatterModel: BaseModel](
+    path: Path,
+    model: type[FrontMatterModel],
+) -> tuple[FrontMatterModel, str]:
     """Parse and validate a Markdown file's optional YAML front matter."""
 
     if not path.exists():
@@ -140,7 +143,7 @@ def normalize_text(value: str) -> str:
 def slug_to_codex_name(slug: str) -> str:
     """Convert a canonical slug into a Codex-compatible name."""
 
-    normalized = re.sub(r"[^a-zA-Z0-9]+", "-", slug).strip("-").lower()
+    normalized = NON_ALPHANUMERIC_PATTERN.sub("-", slug).strip("-").lower()
 
     return normalized or slug
 
