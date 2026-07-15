@@ -68,6 +68,12 @@ The canonical project rules live in `.agents/rules/`.
 - Compound nouns that name a single concept are one entity, not two — `access_control.py`, `request_metadata.py`, and `audit_trail.py` are all fine.
 - When the entity package needs a module for its primary/orchestration surface, name it after the package (`resource/resource.py`) with an empty `__init__.py`; consumers import the specific submodule.
 
+## Utility Placement
+
+- Place generic, stateless, cross-cutting helpers in a `utils.py` module or `utils/` package.
+- Use a `utils.py` module for a small cohesive set of utilities; use a `utils/` package when separate focused utility modules are warranted.
+- Keep domain and orchestration behavior in their owning modules. Do not use utilities as a dumping ground.
+
 ## Model Placement
 
 - Define Pydantic `BaseModel` classes and other application data models under the package's `models/` directory.
