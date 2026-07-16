@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: julien777z/code-automations@v0
+      - uses: owner/code-automations@v0
         with:
           mode: validate
           automations-file-path: automations.yaml
@@ -95,7 +95,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: julien777z/code-automations@v0
+      - uses: owner/code-automations@v0
         with:
           automations-file-path: automations.yaml
           run-automation: ${{ inputs.run-automation }}

@@ -26,6 +26,7 @@ class TestConfiguration:
         second = render_target(loaded, target)
 
         assert first == second
+
         assert [repository.repository for repository in target.repositories] == [
             "owner/repository",
             "owner/secondary",

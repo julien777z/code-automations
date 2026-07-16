@@ -8,6 +8,8 @@ __all__: Final[tuple[str, ...]] = (
     "AgentResult",
     "AutomationWorkspace",
     "ExistingPullRequest",
+    "PullRequestOwner",
+    "PullRequestRepository",
     "PullRequestMetadata",
     "PullRequestState",
     "PublishedPullRequest",
@@ -94,6 +96,22 @@ class PullRequestState(StrEnum):
     MERGED = "MERGED"
 
 
+class PullRequestRepository(BaseModel):
+    """Identify a repository attached to a pull request."""
+
+    model_config = ConfigDict(extra="ignore", strict=True)
+
+    name: str
+
+
+class PullRequestOwner(BaseModel):
+    """Identify the owner attached to a pull request."""
+
+    model_config = ConfigDict(extra="ignore", strict=True)
+
+    login: str
+
+
 class ExistingPullRequest(BaseModel):
     """Represent the existing pull request for an automation branch."""
 
@@ -101,3 +119,5 @@ class ExistingPullRequest(BaseModel):
 
     url: HttpUrl
     state: PullRequestState
+    head_repository: PullRequestRepository | None = Field(validation_alias="headRepository")
+    head_repository_owner: PullRequestOwner | None = Field(validation_alias="headRepositoryOwner")

@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Final
 
 from pydantic import TypeAdapter, ValidationError
@@ -18,6 +19,7 @@ from code_automations.processes import run_command
 from code_automations.workspace import (
     GIT_CREDENTIAL_OPTIONS,
     github_environment,
+    prepare_branch,
     verify_origin,
     workspace_environment,
 )
@@ -76,8 +78,14 @@ def publish_pull_requests(
     recovery = recovery_repositories(workspace, changed, github)
     repositories = [*changed, *recovery]
 
+    publication_repositories: list[RepositoryWorkspace] = []
+
     for repository in changed:
         commit_repository(repository, metadata[repository.repository], environment)
+        patch_path = create_patch(workspace, repository, environment)
+        publication_repository = create_publication_repository(workspace, runtime, repository)
+        apply_patch(publication_repository, patch_path, environment)
+        commit_repository(publication_repository, metadata[repository.repository], environment)
         run_command(
             CommandRequest(
                 command=[
@@ -89,16 +97,20 @@ def publish_pull_requests(
                     f"https://github.com/{repository.repository}.git",
                     f"HEAD:refs/heads/{workspace.branch}",
                 ],
-                cwd=repository.path,
+                cwd=publication_repository.path,
                 environment=github,
             )
         )
+        publication_repositories.append(publication_repository)
+
+    for repository in recovery:
+        publication_repositories.append(create_publication_repository(workspace, runtime, repository))
 
     pull_requests: list[PublishedPullRequest] = []
 
-    for repository in repositories:
+    for repository in publication_repositories:
         repository_metadata = metadata.get(repository.repository) or recovery_metadata(
-            repository, environment
+            next(item for item in repositories if item.repository == repository.repository), environment
         )
 
         pull_requests.append(
@@ -111,6 +123,87 @@ def publish_pull_requests(
         )
 
     return pull_requests
+
+
+def create_patch(
+    workspace: AutomationWorkspace,
+    repository: RepositoryWorkspace,
+    environment: CommandEnvironment,
+) -> Path:
+    """Write the committed agent changes as an uncredentialed Git patch."""
+
+    patch = run_command(
+        CommandRequest(
+            command=["git", "diff", "--binary", repository.starting_commit, "HEAD"],
+            cwd=repository.path,
+            environment=environment,
+        )
+    )
+    patch_path = workspace.root / f"{repository.repository.replace('/', '--')}.patch"
+    patch_path.write_text(patch, encoding="utf-8")
+
+    return patch_path
+
+
+def create_publication_repository(
+    workspace: AutomationWorkspace,
+    runtime: DispatchRuntime,
+    repository: RepositoryWorkspace,
+) -> RepositoryWorkspace:
+    """Clone a clean checkout for credentialed publication."""
+
+    path = workspace.root / f"publication-{repository.repository.replace('/', '--')}"
+    environment = github_environment(runtime)
+    run_command(
+        CommandRequest(
+            command=[
+                "gh",
+                "repo",
+                "clone",
+                repository.repository,
+                str(path),
+                "--",
+                "--branch",
+                repository.branch,
+                "--single-branch",
+            ],
+            cwd=workspace.root,
+            environment=environment,
+        )
+    )
+    existing_branch = prepare_branch(path, repository.branch, workspace.branch, environment)
+
+    if existing_branch != repository.existing_branch:
+        raise DispatchError(f"automation branch changed before publication for {repository.repository}")
+
+    starting_commit = run_command(
+        CommandRequest(
+            command=["git", "rev-parse", "HEAD"],
+            cwd=path,
+            environment=environment,
+        )
+    ).strip()
+
+    if starting_commit != repository.starting_commit:
+        raise DispatchError(f"base branch changed before publication for {repository.repository}")
+
+    return repository.model_copy(update={"path": path})
+
+
+def apply_patch(
+    repository: RepositoryWorkspace,
+    patch_path: Path,
+    environment: CommandEnvironment,
+) -> None:
+    """Apply one uncredentialed agent patch to a clean publication checkout."""
+
+    run_command(
+        CommandRequest(
+            command=["git", "-c", "core.hooksPath=/dev/null", "apply", "--index", str(patch_path)],
+            cwd=repository.path,
+            environment=environment,
+        )
+    )
 
 
 def recovery_repositories(
@@ -267,8 +360,10 @@ def existing_pull_request(
                 output_branch,
                 "--state",
                 "all",
+                "--limit",
+                "1000",
                 "--json",
-                "url,state",
+                "url,state,headRepository,headRepositoryOwner",
             ],
             cwd=repository.path,
             environment=environment,
@@ -279,6 +374,15 @@ def existing_pull_request(
         pull_requests = TypeAdapter(list[ExistingPullRequest]).validate_json(output)
     except ValidationError as error:
         raise DispatchError(f"unable to read existing pull requests: {error}") from error
+
+    pull_requests = [
+        pull_request
+        for pull_request in pull_requests
+        if pull_request.head_repository is not None
+        and pull_request.head_repository_owner is not None
+        and f"{pull_request.head_repository_owner.login}/{pull_request.head_repository.name}"
+        == repository.repository
+    ]
 
     if len(pull_requests) > 1:
         raise DispatchError(f"multiple pull requests exist for {repository.repository} and {output_branch}")
