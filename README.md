@@ -1,26 +1,32 @@
-# Cloud Automations
+# Code Automations
 
-Validate and dispatch repository-owned Cloud automations with one reusable GitHub Action.
+Run repository-owned, multi-repository automations from one reusable GitHub Action.
 
 ## Setup
 
-Keep `automations.yaml`, `prompts/`, and `skills/` in the consumer repository. Add the Codex
-authentication document as an Actions secret:
+Keep `automations.yaml`, `prompts/`, and `skills/` in the consumer repository. Configure these Actions
+secrets for every template-derived repository:
 
 ```shell
 gh secret set CODEX_AUTH_JSON < ~/.codex/auth.json
+gh secret set AUTOMATION_GITHUB_TOKEN
 ```
 
-Create a Cloud environment whose label matches each configured `owner/repository`, or set an explicit
-`environment` in `automations.yaml`.
+`AUTOMATION_GITHUB_TOKEN` must be a GitHub App installation token or fine-grained personal access token
+with access to the consumer repository and every configured target repository. It needs contents and pull
+request write permission. The standard `GITHUB_TOKEN` does not normally grant access to sibling repositories.
 
 ## Configuration
 
 ```yaml
 version: 1
-repositories:
-  self:
-    branch: main
+projects:
+  example:
+    repositories:
+      self:
+        branch: main
+      owner/related-repository:
+        branch: develop
     automations:
       hello-world:
         prompt: examples/hello-world
@@ -28,11 +34,15 @@ repositories:
           - examples/concise
 ```
 
-`self` resolves to the repository running the workflow. Prompt and skill references such as
-`foo/bar` load `prompts/foo/bar.md` and `skills/foo/bar.md` relative to the configuration file. Add
-`schedule.cron` and `schedule.timezone` for scheduled runs; automations without a schedule remain
-manual-only. The canonical schema is available in
-[`automations.schema.json`](automations.schema.json).
+Project keys are arbitrary. Repository mapping order defines the primary repository; each following repository
+is writable by the same Codex session. `self` resolves to the repository running the workflow. A repository
+branch defaults to `main`. Prompt and skill references such as `foo/bar` load `prompts/foo/bar.md` and
+`skills/foo/bar.md`. Add `schedule.cron` and `schedule.timezone` for scheduled runs; other automations are
+manual-only.
+
+The action creates the same `automation/<name>/...` branch in every changed repository and opens or updates a
+separate pull request targeting that repository's configured base branch. Codex does not receive the GitHub
+token and does not publish changes itself.
 
 ## Validate Configuration
 
@@ -41,10 +51,6 @@ name: Validate Automations
 
 on:
   push:
-    paths:
-      - automations.yaml
-      - "prompts/**"
-      - "skills/**"
 
 permissions:
   contents: read
@@ -60,13 +66,10 @@ jobs:
           automations-file-path: automations.yaml
 ```
 
-Consumers do not copy the Python package, Node dependencies, tests, or generated schema. Validation
-uses the models shipped with the selected action version.
-
-## Dispatch Automations
+## Run Automations
 
 ```yaml
-name: Dispatch Automations
+name: Run Automations
 
 on:
   schedule:
@@ -97,33 +100,12 @@ jobs:
           automations-file-path: automations.yaml
           run-automation: ${{ inputs.run-automation }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+          github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
 ```
 
-An empty `run-automation` input dispatches every due scheduled automation and persists successful
-occurrences on the consumer repository's `automation-state` branch. Scheduled workflows therefore
-need `contents: write` and a full checkout. Manual-only workflows may use `contents: read`.
-
-The action validates configuration before every dispatch, installs its own dependencies, stores task
-authentication in a permission-restricted temporary directory, and links submitted tasks in the GitHub
-Actions job summary.
-
-## Inputs
-
-- `automations-file-path` — configuration path relative to the checked-out consumer repository;
-  defaults to `automations.yaml`.
-- `mode` — `dispatch` by default, or `validate` for configuration-only checks.
-- `run-automation` — globally unique automation name for manual dispatch; empty dispatches scheduled
-  automations.
-- `codex-auth-json` — complete Codex authentication document; required for dispatch and unused for
-  validation.
-
-## Versioning
-
-Use the moving major tag to receive compatible fixes:
-
-```yaml
-- uses: julien777z/code-automations@v0
-```
+An empty `run-automation` dispatches every due scheduled automation and persists successful occurrences on the
+consumer repository's `automation-state` branch. Scheduled workflows require `contents: write` and a full
+checkout. Do not run this authenticated workflow for pull-request events.
 
 ## Local Development
 
@@ -133,7 +115,7 @@ npm ci
 poetry run pytest
 poetry run ruff check .
 poetry run ruff format --check .
-poetry run cloud-automations validate
+poetry run code-automations validate
 ```
 
 ## License

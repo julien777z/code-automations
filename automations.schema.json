@@ -2,15 +2,8 @@
   "$defs": {
     "AutomationConfig": {
       "additionalProperties": false,
-      "description": "Define one Cloud automation.",
+      "description": "Define one automation.",
       "properties": {
-        "attempts": {
-          "default": 1,
-          "maximum": 4,
-          "minimum": 1,
-          "title": "Attempts",
-          "type": "integer"
-        },
         "enabled": {
           "default": true,
           "title": "Enabled",
@@ -45,9 +38,9 @@
       "title": "AutomationConfig",
       "type": "object"
     },
-    "RepositoryConfig": {
+    "ProjectConfig": {
       "additionalProperties": false,
-      "description": "Group automations for one repository and Cloud environment.",
+      "description": "Group repositories and automations for one project.",
       "properties": {
         "automations": {
           "additionalProperties": {
@@ -57,29 +50,32 @@
           "title": "Automations",
           "type": "object"
         },
+        "repositories": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RepositoryConfig"
+          },
+          "minProperties": 1,
+          "title": "Repositories",
+          "type": "object"
+        }
+      },
+      "required": [
+        "repositories",
+        "automations"
+      ],
+      "title": "ProjectConfig",
+      "type": "object"
+    },
+    "RepositoryConfig": {
+      "additionalProperties": false,
+      "description": "Configure one repository within a project.",
+      "properties": {
         "branch": {
           "default": "main",
           "title": "Branch",
           "type": "string"
-        },
-        "environment": {
-          "anyOf": [
-            {
-              "maxLength": 64,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Environment"
         }
       },
-      "required": [
-        "automations"
-      ],
       "title": "RepositoryConfig",
       "type": "object"
     },
@@ -107,12 +103,12 @@
   "additionalProperties": false,
   "description": "Define the complete automation configuration.",
   "properties": {
-    "repositories": {
+    "projects": {
       "additionalProperties": {
-        "$ref": "#/$defs/RepositoryConfig"
+        "$ref": "#/$defs/ProjectConfig"
       },
       "minProperties": 1,
-      "title": "Repositories",
+      "title": "Projects",
       "type": "object"
     },
     "version": {
@@ -123,7 +119,7 @@
   },
   "required": [
     "version",
-    "repositories"
+    "projects"
   ],
   "title": "AutomationsConfig",
   "type": "object"

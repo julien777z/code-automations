@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Final
 
-from cloud_automations.errors import ConfigurationError
+from code_automations.errors import ConfigurationError
 
 __all__: Final[tuple[str, ...]] = ("parse_datetime",)
 

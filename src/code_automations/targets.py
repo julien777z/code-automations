@@ -3,11 +3,12 @@ import subprocess
 from pathlib import Path
 from typing import Final
 
-from cloud_automations.errors import ConfigurationError
-from cloud_automations.models.configuration import (
+from code_automations.errors import ConfigurationError
+from code_automations.models.configuration import (
     REPOSITORY_PATTERN,
     AutomationTarget,
     LoadedConfiguration,
+    ResolvedRepository,
 )
 
 GITHUB_ORIGIN_PATTERN: Final[re.Pattern[str]] = re.compile(
@@ -50,17 +51,25 @@ def resolve_targets(loaded: LoadedConfiguration, self_repository: str) -> list[A
 
     automation_targets: list[AutomationTarget] = []
 
-    for repository_key, repository in loaded.config.repositories.items():
-        repository_name = self_repository if repository_key == "self" else repository_key
-        environment = repository.environment or repository_name
+    for project_name, project in loaded.config.projects.items():
+        repositories: list[ResolvedRepository] = []
+        repository_names: set[str] = set()
 
-        for name, automation in repository.automations.items():
+        for repository_key, repository in project.repositories.items():
+            repository_name = self_repository if repository_key == "self" else repository_key
+
+            if repository_name in repository_names:
+                raise ConfigurationError(f"duplicate resolved repository: {repository_name}")
+
+            repository_names.add(repository_name)
+            repositories.append(ResolvedRepository(repository=repository_name, branch=repository.branch))
+
+        for name, automation in project.automations.items():
             automation_targets.append(
                 AutomationTarget(
                     name=name,
-                    repository=repository_name,
-                    environment=environment,
-                    branch=repository.branch,
+                    project=project_name,
+                    repositories=repositories,
                     automation=automation,
                 )
             )

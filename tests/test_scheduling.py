@@ -2,10 +2,10 @@ from datetime import UTC, datetime
 
 import pytest
 
-from cloud_automations.models.configuration import LoadedConfiguration, ScheduleConfig
-from cloud_automations.models.dispatching import AutomationState
-from cloud_automations.scheduling import due_automations, latest_occurrence
-from cloud_automations.targets import resolve_targets
+from code_automations.models.configuration import LoadedConfiguration, ScheduleConfig
+from code_automations.models.dispatching import AutomationState
+from code_automations.scheduling import due_automations, latest_occurrence
+from code_automations.targets import resolve_targets
 
 
 class TestScheduling:

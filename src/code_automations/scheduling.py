@@ -4,8 +4,8 @@ from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
-from cloud_automations.models.configuration import AutomationTarget, ScheduleConfig
-from cloud_automations.models.dispatching import AutomationState, DueAutomation
+from code_automations.models.configuration import AutomationTarget, ScheduleConfig
+from code_automations.models.dispatching import AutomationState, DueAutomation
 
 __all__: Final[tuple[str, ...]] = ("due_automations", "latest_occurrence")
 

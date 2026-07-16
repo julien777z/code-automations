@@ -10,6 +10,6 @@ class ConfigurationError(ValueError):
 
 
 class DispatchError(RuntimeError):
-    """Report a failed Codex Cloud submission."""
+    """Report a failed automation execution or publication."""
 
     pass

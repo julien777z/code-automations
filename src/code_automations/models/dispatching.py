@@ -2,9 +2,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Final, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
-from cloud_automations.models.configuration import AutomationTarget, LoadedConfiguration
+from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
+from code_automations.models.execution import PublishedPullRequest
 
 __all__: Final[tuple[str, ...]] = (
     "AutomationState",
@@ -12,8 +13,8 @@ __all__: Final[tuple[str, ...]] = (
     "DueAutomation",
     "ScheduledDispatch",
     "SubmittedAutomation",
-    "SubmissionRequest",
-    "SubmissionResult",
+    "ExecutionRequest",
+    "ExecutionResult",
 )
 
 
@@ -35,30 +36,32 @@ class DueAutomation(BaseModel):
     scheduled_for: datetime
 
 
-class SubmissionRequest(BaseModel):
-    """Describe one Codex Cloud submission."""
+class ExecutionRequest(BaseModel):
+    """Describe one local Codex execution."""
 
     model_config = ConfigDict(frozen=True)
 
+    loaded: LoadedConfiguration
     target: AutomationTarget
-    prompt: str
+    scheduled_for: datetime | None = None
 
 
-class SubmissionResult(BaseModel):
-    """Capture a submitted Codex Cloud task URL."""
+class ExecutionResult(BaseModel):
+    """Capture a completed automation execution."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
-    task_url: HttpUrl
+    summary: str
+    pull_requests: list[PublishedPullRequest]
 
 
 class SubmittedAutomation(BaseModel):
-    """Pair a submitted automation with its task result."""
+    """Pair an automation with its execution result."""
 
     model_config = ConfigDict(frozen=True)
 
     name: str
-    result: SubmissionResult
+    result: ExecutionResult
 
 
 class DispatchOutcome(BaseModel):

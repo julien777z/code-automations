@@ -1,0 +1,54 @@
+from pathlib import Path
+from typing import Final
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+__all__: Final[tuple[str, ...]] = ("ActionsRuntime", "DispatchRuntime", "resolve_dispatch_runtime")
+
+
+class ActionsRuntime(BaseSettings):
+    """Read GitHub Actions runtime settings."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    github_repository: str | None = Field(default=None, validation_alias="GITHUB_REPOSITORY")
+    github_step_summary: str | None = Field(default=None, validation_alias="GITHUB_STEP_SUMMARY")
+    github_run_id: str | None = Field(default=None, validation_alias="GITHUB_RUN_ID")
+    github_token: str | None = Field(default=None, validation_alias="AUTOMATION_GITHUB_TOKEN")
+    command_path: str | None = Field(default=None, validation_alias="AUTOMATION_COMMAND_PATH")
+    home: str | None = Field(default=None, validation_alias="AUTOMATION_HOME")
+    codex_home: Path | None = Field(default=None, validation_alias="AUTOMATION_CODEX_HOME")
+    runner_temp: Path | None = Field(default=None, validation_alias="RUNNER_TEMP")
+
+
+class DispatchRuntime(BaseModel):
+    """Provide the credentials and directories required for dispatch."""
+
+    model_config = ConfigDict(frozen=True, strict=True)
+
+    github_token: str
+    command_path: str
+    home: str
+    codex_home: Path
+    runner_temp: Path
+    github_run_id: str
+
+
+def resolve_dispatch_runtime(runtime: ActionsRuntime) -> DispatchRuntime:
+    """Require the GitHub Actions values needed to run an automation."""
+
+    required = (
+        ("github_token", runtime.github_token),
+        ("command_path", runtime.command_path),
+        ("home", runtime.home),
+        ("codex_home", runtime.codex_home),
+        ("runner_temp", runtime.runner_temp),
+        ("github_run_id", runtime.github_run_id),
+    )
+    missing = [name for name, value in required if value is None]
+
+    if missing:
+        raise ValueError(f"dispatch requires GitHub Actions values: {', '.join(missing)}")
+
+    return DispatchRuntime.model_validate(runtime.model_dump(exclude_none=True))

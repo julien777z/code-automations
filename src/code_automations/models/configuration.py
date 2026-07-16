@@ -12,8 +12,10 @@ __all__: Final[tuple[str, ...]] = (
     "AutomationTarget",
     "AutomationsConfig",
     "LoadedConfiguration",
+    "ProjectConfig",
     "REPOSITORY_PATTERN",
     "RepositoryConfig",
+    "ResolvedRepository",
     "ScheduleConfig",
     "validate_branch",
     "validate_cron_field",
@@ -141,13 +143,12 @@ class ScheduleConfig(BaseModel):
 
 
 class AutomationConfig(BaseModel):
-    """Define one Cloud automation."""
+    """Define one automation."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
     prompt: str
     skills: list[str] = Field(default_factory=list)
-    attempts: int = Field(default=1, ge=1, le=4)
     schedule: ScheduleConfig | None = None
     enabled: bool = True
 
@@ -167,23 +168,11 @@ class AutomationConfig(BaseModel):
 
 
 class RepositoryConfig(BaseModel):
-    """Group automations for one repository and Cloud environment."""
+    """Configure one repository within a project."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    environment: str | None = Field(default=None, min_length=1, max_length=64)
     branch: str = "main"
-    automations: dict[str, AutomationConfig] = Field(min_length=1)
-
-    @field_validator("environment")
-    @classmethod
-    def validate_environment(cls, value: str | None) -> str | None:
-        """Validate an optional Cloud environment label."""
-
-        if value is not None and (value != value.strip() or not value.isprintable()):
-            raise ValueError("invalid Cloud environment label")
-
-        return value
 
     @field_validator("branch")
     @classmethod
@@ -191,6 +180,30 @@ class RepositoryConfig(BaseModel):
         """Validate the repository branch."""
 
         return validate_branch(value)
+
+
+class ProjectConfig(BaseModel):
+    """Group repositories and automations for one project."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    repositories: dict[str, RepositoryConfig] = Field(min_length=1)
+    automations: dict[str, AutomationConfig] = Field(min_length=1)
+
+    @field_validator("repositories")
+    @classmethod
+    def validate_repository_names(cls, value: dict[str, RepositoryConfig]) -> dict[str, RepositoryConfig]:
+        """Validate configured repository identifiers."""
+
+        invalid_name = next(
+            (name for name in value if name != "self" and not REPOSITORY_PATTERN.fullmatch(name)),
+            None,
+        )
+
+        if invalid_name is not None:
+            raise ValueError(f"invalid repository identifier: {invalid_name}")
+
+        return value
 
     @field_validator("automations")
     @classmethod
@@ -211,19 +224,16 @@ class AutomationsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     version: Literal[1]
-    repositories: dict[str, RepositoryConfig] = Field(min_length=1)
+    projects: dict[str, ProjectConfig] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_repositories_and_names(self) -> Self:
-        """Validate repository keys and global automation-name uniqueness."""
+    def validate_project_automation_names(self) -> Self:
+        """Validate global automation-name uniqueness."""
 
         automation_names: set[str] = set()
 
-        for repository, config in self.repositories.items():
-            if repository != "self" and not REPOSITORY_PATTERN.fullmatch(repository):
-                raise ValueError(f"invalid repository identifier: {repository}")
-
-            for name in config.automations:
+        for project in self.projects.values():
+            for name in project.automations:
                 if name in automation_names:
                     raise ValueError(f"duplicate automation name: {name}")
 
@@ -241,13 +251,21 @@ class LoadedConfiguration(BaseModel):
     config: AutomationsConfig
 
 
+class ResolvedRepository(BaseModel):
+    """Represent one resolved repository and its base branch."""
+
+    model_config = ConfigDict(frozen=True)
+
+    repository: str
+    branch: str
+
+
 class AutomationTarget(BaseModel):
-    """Represent a resolved automation target."""
+    """Represent a resolved multi-repository automation target."""
 
     model_config = ConfigDict(frozen=True)
 
     name: str
-    repository: str
-    environment: str
-    branch: str
+    project: str
+    repositories: list[ResolvedRepository]
     automation: AutomationConfig

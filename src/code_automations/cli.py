@@ -6,22 +6,22 @@ from typing import Final
 
 from pydantic import TypeAdapter
 
-from cloud_automations.configuration import (
-    load_configuration,
-    validate_configuration,
+from code_automations.configuration import load_configuration, validate_configuration
+from code_automations.dispatching import dispatch_due, dispatch_target
+from code_automations.errors import ConfigurationError, DispatchError
+from code_automations.models.cli import CliArguments, DueRecord, DueRepository
+from code_automations.models.dispatching import (
+    DueAutomation,
+    ExecutionRequest,
+    ScheduledDispatch,
+    SubmittedAutomation,
 )
-from cloud_automations.dispatching import (
-    dispatch_due,
-    dispatch_target,
-)
-from cloud_automations.errors import ConfigurationError, DispatchError
-from cloud_automations.models.cli import CliArguments, DueRecord, GitHubRuntime
-from cloud_automations.models.dispatching import DueAutomation, ScheduledDispatch, SubmittedAutomation
-from cloud_automations.rendering import render_target
-from cloud_automations.scheduling import due_automations
-from cloud_automations.state import load_state
-from cloud_automations.targets import find_target, resolve_self_repository, resolve_targets
-from cloud_automations.utils import parse_datetime
+from code_automations.models.runtime import ActionsRuntime, resolve_dispatch_runtime
+from code_automations.rendering import render_target
+from code_automations.scheduling import due_automations
+from code_automations.state import load_state
+from code_automations.targets import find_target, resolve_self_repository, resolve_targets
+from code_automations.utils import parse_datetime
 
 __all__: Final[tuple[str, ...]] = ("main",)
 
@@ -29,11 +29,19 @@ logger = logging.getLogger(__name__)
 
 
 def write_summary(path: Path | None, submission: SubmittedAutomation) -> None:
-    """Append a submitted task link to the GitHub Actions summary."""
+    """Append an automation result to the GitHub Actions summary."""
 
-    if path is not None:
-        with path.open("a", encoding="utf-8") as summary:
-            summary.write(f"- [{submission.name}]({submission.result.task_url})\n")
+    if path is None:
+        return
+
+    with path.open("a", encoding="utf-8") as summary:
+        summary.write(f"## {submission.name}\n\n{submission.result.summary}\n\n")
+
+        if submission.result.pull_requests:
+            for pull_request in submission.result.pull_requests:
+                summary.write(f"- [{pull_request.repository}]({pull_request.url})\n")
+        else:
+            summary.write("- No repository changes\n")
 
 
 def due_payload(items: list[DueAutomation]) -> str:
@@ -42,9 +50,11 @@ def due_payload(items: list[DueAutomation]) -> str:
     records = [
         DueRecord(
             automation=item.target.name,
-            repository=item.target.repository,
-            branch=item.target.branch,
-            environment=item.target.environment,
+            project=item.target.project,
+            repositories=[
+                DueRepository(repository=repository.repository, branch=repository.branch)
+                for repository in item.target.repositories
+            ],
             scheduled_for=item.scheduled_for,
         )
         for item in items
@@ -56,7 +66,7 @@ def due_payload(items: list[DueAutomation]) -> str:
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line interface."""
 
-    parser = argparse.ArgumentParser(prog="cloud-automations")
+    parser = argparse.ArgumentParser(prog="code-automations")
     parser.add_argument("--config", type=Path, default=Path("automations.yaml"))
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -82,11 +92,11 @@ def build_parser() -> argparse.ArgumentParser:
 def run(arguments: CliArguments) -> int:
     """Run a parsed CLI command."""
 
-    runtime = GitHubRuntime()
+    runtime = ActionsRuntime()
     summary_path = Path(runtime.github_step_summary) if runtime.github_step_summary else None
 
     if arguments.command == "validate":
-        validate_configuration(arguments.config)
+        validate_configuration(arguments.config, runtime.github_repository)
 
         logger.info("Configuration is valid.")
 
@@ -112,14 +122,17 @@ def run(arguments: CliArguments) -> int:
 
         return 0
 
+    dispatch_runtime = resolve_dispatch_runtime(runtime)
+
     if arguments.automation is not None:
         target = find_target(loaded, self_repository, arguments.automation)
-        result = dispatch_target(loaded, target)
+        result = dispatch_target(ExecutionRequest(loaded=loaded, target=target), dispatch_runtime)
         submission = SubmittedAutomation(name=target.name, result=result)
 
         write_summary(summary_path, submission)
 
-        logger.info(result.task_url)
+        for pull_request in result.pull_requests:
+            logger.info(pull_request.url)
 
         return 0
 
@@ -134,12 +147,13 @@ def run(arguments: CliArguments) -> int:
         state_path=arguments.state,
     )
 
-    outcome = dispatch_due(scheduled_dispatch)
+    outcome = dispatch_due(scheduled_dispatch, dispatch_runtime)
 
     for submission in outcome.submissions:
         write_summary(summary_path, submission)
 
-        logger.info(submission.result.task_url)
+        for pull_request in submission.result.pull_requests:
+            logger.info(pull_request.url)
 
     if outcome.failures:
         raise DispatchError("; ".join(outcome.failures))
@@ -148,7 +162,7 @@ def run(arguments: CliArguments) -> int:
 
 
 def main() -> int:
-    """Run the cloud-automations CLI."""
+    """Run the code-automations CLI."""
 
     logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
 

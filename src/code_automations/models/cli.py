@@ -3,9 +3,8 @@ from pathlib import Path
 from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
-__all__: Final[tuple[str, ...]] = ("CliArguments", "DueRecord", "GitHubRuntime")
+__all__: Final[tuple[str, ...]] = ("CliArguments", "DueRecord", "DueRepository")
 
 
 class DueRecord(BaseModel):
@@ -14,9 +13,8 @@ class DueRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     automation: str
-    repository: str
-    branch: str
-    environment: str
+    project: str
+    repositories: list["DueRepository"]
     scheduled_for: datetime
 
 
@@ -33,10 +31,10 @@ class CliArguments(BaseModel):
     now: str | None = None
 
 
-class GitHubRuntime(BaseSettings):
-    """Read GitHub Actions runtime settings."""
+class DueRepository(BaseModel):
+    """Serialize one repository due for an automation."""
 
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
-    github_repository: str | None = None
-    github_step_summary: str | None = None
+    repository: str
+    branch: str

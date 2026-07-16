@@ -1,7 +1,7 @@
 [project]
-name = "cloud-automations"
+name = "code-automations"
 version = "0.1.0"
-description = "Schedule reusable Codex Cloud automations from GitHub Actions."
+description = "Run reusable multi-repository automations from GitHub Actions."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 license = "MIT"
@@ -9,10 +9,10 @@ license-files = ["LICENSE"]
 dynamic = ["dependencies"]
 
 [project.scripts]
-cloud-automations = "cloud_automations.cli:main"
+code-automations = "code_automations.cli:main"
 
 [tool.poetry]
-packages = [{ include = "cloud_automations", from = "src" }]
+packages = [{ include = "code_automations", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.13,<3.14"

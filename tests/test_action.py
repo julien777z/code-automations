@@ -17,6 +17,7 @@ class TestAction:
         assert set(inputs) == {
             "codex-auth-json",
             "automations-file-path",
+            "github-token",
             "mode",
             "run-automation",
         }

@@ -28,3 +28,4 @@ jobs:
         with:
           run-automation: ${{ inputs.run-automation }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+          github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}

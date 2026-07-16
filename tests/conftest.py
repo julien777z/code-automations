@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from cloud_automations.configuration import load_configuration
-from cloud_automations.models.configuration import LoadedConfiguration
+from code_automations.configuration import load_configuration
+from code_automations.models.configuration import LoadedConfiguration
 
 
 @pytest.fixture
@@ -21,9 +21,13 @@ def automation_config_path(tmp_path: Path) -> Path:
     config_path = tmp_path / "automations.yaml"
     config_path.write_text(
         """version: 1
-repositories:
-  self:
-    branch: main
+projects:
+  example:
+    repositories:
+      self:
+        branch: main
+      owner/secondary:
+        branch: develop
     automations:
       hello-world:
         prompt: examples/hello-world
@@ -48,8 +52,10 @@ def scheduled_configuration(tmp_path: Path) -> LoadedConfiguration:
     config_path = tmp_path / "automations.yaml"
     config_path.write_text(
         """version: 1
-repositories:
-  self:
+projects:
+  example:
+    repositories:
+      self: {}
     automations:
       scheduled:
         prompt: examples/task

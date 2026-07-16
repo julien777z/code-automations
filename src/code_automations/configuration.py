@@ -6,11 +6,12 @@ import yaml
 from pydantic import ValidationError
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
-from cloud_automations.errors import ConfigurationError
-from cloud_automations.models.configuration import (
+from code_automations.errors import ConfigurationError
+from code_automations.models.configuration import (
     AutomationsConfig,
     LoadedConfiguration,
 )
+from code_automations.targets import resolve_self_repository, resolve_targets
 
 type FragmentDirectory = Literal["prompts", "skills"]
 
@@ -89,8 +90,8 @@ def load_configuration(path: Path) -> LoadedConfiguration:
 
     loaded = LoadedConfiguration(root=path.resolve().parent, config=config)
 
-    for repository in config.repositories.values():
-        for automation in repository.automations.values():
+    for project in config.projects.values():
+        for automation in project.automations.values():
             read_fragment(loaded.root, "prompts", automation.prompt)
             for skill in automation.skills:
                 read_fragment(loaded.root, "skills", skill)
@@ -104,7 +105,11 @@ def schema_text() -> str:
     return json.dumps(AutomationsConfig.model_json_schema(), indent=2, sort_keys=True) + "\n"
 
 
-def validate_configuration(config_path: Path) -> None:
+def validate_configuration(config_path: Path, github_repository: str | None = None) -> None:
     """Validate one automation configuration and its referenced resources."""
 
-    load_configuration(config_path)
+    loaded = load_configuration(config_path)
+    has_self_repository = any("self" in project.repositories for project in loaded.config.projects.values())
+
+    if has_self_repository:
+        resolve_targets(loaded, resolve_self_repository(loaded.root, github_repository))

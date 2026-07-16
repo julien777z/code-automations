@@ -2,8 +2,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from cloud_automations.errors import ConfigurationError
-from cloud_automations.utils import parse_datetime
+from code_automations.errors import ConfigurationError
+from code_automations.utils import parse_datetime
 
 
 class TestParseDatetime:

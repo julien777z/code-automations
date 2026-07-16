@@ -1,25 +1,29 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from cloud_automations.dispatching import dispatch_due
-from cloud_automations.errors import DispatchError
-from cloud_automations.models.configuration import LoadedConfiguration
-from cloud_automations.models.dispatching import (
+from code_automations.dispatching import dispatch_due
+from code_automations.errors import DispatchError
+from code_automations.models.configuration import LoadedConfiguration
+from code_automations.models.dispatching import (
     AutomationState,
+    ExecutionRequest,
+    ExecutionResult,
     ScheduledDispatch,
-    SubmissionRequest,
-    SubmissionResult,
 )
-from cloud_automations.scheduling import due_automations
-from cloud_automations.state import load_state
-from cloud_automations.targets import resolve_targets
+from code_automations.models.execution import PublishedPullRequest
+from code_automations.models.runtime import DispatchRuntime
+from code_automations.scheduling import due_automations
+from code_automations.state import load_state
+from code_automations.targets import resolve_targets
 
 
 class TestDispatching:
-    """Test scheduled Cloud task submission."""
+    """Test scheduled multi-repository automation execution."""
 
-    def test_failed_submission_retries_without_advancing_state(
-        self, scheduled_configuration: LoadedConfiguration, tmp_path: Path
+    def test_failed_execution_retries_without_advancing_state(
+        self,
+        scheduled_configuration: LoadedConfiguration,
+        tmp_path: Path,
     ) -> None:
         """Leave failed occurrences due and advance state after a later success."""
 
@@ -34,29 +38,47 @@ class TestDispatching:
             state=state,
             state_path=state_path,
         )
+        runtime = DispatchRuntime(
+            github_token="token",
+            command_path="/bin",
+            home="/tmp",
+            codex_home=tmp_path,
+            runner_temp=tmp_path,
+            github_run_id="123",
+        )
 
-        def fail(request: SubmissionRequest) -> SubmissionResult:
-            """Fail one test submission."""
+        def fail(request: ExecutionRequest, received_runtime: DispatchRuntime) -> ExecutionResult:
+            """Fail one test execution."""
 
             assert request.target.name == "scheduled"
+            assert received_runtime is runtime
 
-            raise DispatchError("submission failed")
+            raise DispatchError("execution failed")
 
-        failed = dispatch_due(scheduled_dispatch, fail)
+        failed = dispatch_due(scheduled_dispatch, runtime, fail)
 
-        assert failed.failures == ["scheduled: submission failed"]
+        assert failed.failures == ["scheduled: execution failed"]
         assert state.successful == {}
         assert not state_path.exists()
         assert len(due_automations(automation_targets, state, now + timedelta(minutes=1))) == 1
 
-        def succeed(request: SubmissionRequest) -> SubmissionResult:
-            """Accept one test submission."""
+        def succeed(request: ExecutionRequest, received_runtime: DispatchRuntime) -> ExecutionResult:
+            """Complete one test execution."""
 
-            assert request.prompt.endswith("Run the task.\n")
+            assert request.scheduled_for == due[0].scheduled_for
+            assert received_runtime is runtime
 
-            return SubmissionResult(task_url="https://chatgpt.com/codex/tasks/task_example")
+            return ExecutionResult(
+                summary="Completed.",
+                pull_requests=[
+                    PublishedPullRequest(
+                        repository="owner/repository",
+                        url="https://github.com/owner/repository/pull/1",
+                    )
+                ],
+            )
 
-        successful = dispatch_due(scheduled_dispatch, succeed)
+        successful = dispatch_due(scheduled_dispatch, runtime, succeed)
 
         assert successful.failures == []
         assert load_state(state_path).successful["scheduled"] == due[0].scheduled_for
