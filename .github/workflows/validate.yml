@@ -19,5 +19,8 @@ jobs:
         with:
           mode: validate
       - run: |
-          go install -modfile=.github/actionlint/go.mod github.com/rhysd/actionlint/cmd/actionlint
+          (
+            cd .github/actionlint
+            go install github.com/rhysd/actionlint/cmd/actionlint
+          )
           "$(go env GOPATH)/bin/actionlint"
