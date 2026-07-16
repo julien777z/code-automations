@@ -1,8 +1,8 @@
 # Cloud Automations
 
-Validate and dispatch repository-owned Codex Cloud automations with one reusable GitHub Action.
+Validate and dispatch repository-owned Cloud automations with one reusable GitHub Action.
 
-## Consumer Setup
+## Setup
 
 Keep `automations.yaml`, `prompts/`, and `skills/` in the consumer repository. Add the Codex
 authentication document as an Actions secret:
@@ -11,8 +11,8 @@ authentication document as an Actions secret:
 gh secret set CODEX_AUTH_JSON < ~/.codex/auth.json
 ```
 
-Create a Codex Cloud environment whose label matches each configured `owner/repository`, or set an
-explicit `environment` in `automations.yaml`.
+Create a Cloud environment whose label matches each configured `owner/repository`, or set an explicit
+`environment` in `automations.yaml`.
 
 ## Configuration
 
@@ -57,7 +57,7 @@ jobs:
       - uses: julien777z/code-automations@v0
         with:
           mode: validate
-          config-path: automations.yaml
+          automations-file-path: automations.yaml
 ```
 
 Consumers do not copy the Python package, Node dependencies, tests, or generated schema. Validation
@@ -73,7 +73,7 @@ on:
     - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
-      automation:
+      run-automation:
         description: Globally unique automation name
         required: true
         type: string
@@ -94,27 +94,28 @@ jobs:
           fetch-depth: 0
       - uses: julien777z/code-automations@v0
         with:
-          config-path: automations.yaml
-          automation: ${{ inputs.automation }}
+          automations-file-path: automations.yaml
+          run-automation: ${{ inputs.run-automation }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
 ```
 
-An empty `automation` input dispatches every due scheduled automation and persists successful
+An empty `run-automation` input dispatches every due scheduled automation and persists successful
 occurrences on the consumer repository's `automation-state` branch. Scheduled workflows therefore
 need `contents: write` and a full checkout. Manual-only workflows may use `contents: read`.
 
-The action validates configuration before every dispatch, installs its own Python and Node
-dependencies, stores Codex authentication in a permission-restricted temporary `CODEX_HOME`, and
-links submitted tasks in the GitHub Actions job summary.
+The action validates configuration before every dispatch, installs its own dependencies, stores task
+authentication in a permission-restricted temporary directory, and links submitted tasks in the GitHub
+Actions job summary.
 
 ## Inputs
 
-- `config-path` — configuration path relative to the checked-out consumer repository; defaults to
-  `automations.yaml`.
+- `automations-file-path` — configuration path relative to the checked-out consumer repository;
+  defaults to `automations.yaml`.
 - `mode` — `dispatch` by default, or `validate` for configuration-only checks.
-- `automation` — globally unique automation name for manual dispatch; empty dispatches scheduled
+- `run-automation` — globally unique automation name for manual dispatch; empty dispatches scheduled
   automations.
-- `codex-auth-json` — complete Codex `auth.json`; required for dispatch and unused for validation.
+- `codex-auth-json` — complete Codex authentication document; required for dispatch and unused for
+  validation.
 
 ## Versioning
 

@@ -5,7 +5,7 @@ on:
     - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
-      automation:
+      run-automation:
         description: Globally unique automation name
         required: true
         type: string
@@ -26,5 +26,5 @@ jobs:
           fetch-depth: 0
       - uses: ./
         with:
-          automation: ${{ inputs.automation }}
+          run-automation: ${{ inputs.run-automation }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}

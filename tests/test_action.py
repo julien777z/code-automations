@@ -14,6 +14,11 @@ class TestAction:
         inputs = action["inputs"]
 
         assert action["runs"]["using"] == "composite"
-        assert set(inputs) == {"automation", "codex-auth-json", "config-path", "mode"}
-        assert inputs["config-path"]["default"] == "automations.yaml"
+        assert set(inputs) == {
+            "codex-auth-json",
+            "automations-file-path",
+            "mode",
+            "run-automation",
+        }
+        assert inputs["automations-file-path"]["default"] == "automations.yaml"
         assert inputs["mode"]["default"] == "dispatch"
