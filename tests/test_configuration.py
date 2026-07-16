@@ -87,6 +87,23 @@ class TestConfiguration:
         with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
             validate_configuration(automation_config_path, "owner/repository")
 
+    @pytest.mark.parametrize("repository", ["owner/.", "owner/..", "owner/repository.git"])
+    def test_invalid_repository_path_segments_are_rejected(
+        self,
+        automation_config_path: Path,
+        repository: str,
+    ) -> None:
+        """Reject repository names GitHub cannot clone or publish."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        automation_config_path.write_text(
+            configuration.replace("owner/secondary", repository),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigurationError, match="invalid repository identifier"):
+            load_configuration(automation_config_path)
+
     def test_missing_fragment_is_rejected(self, automation_config_path: Path) -> None:
         """Reject a missing prompt or skill file."""
 

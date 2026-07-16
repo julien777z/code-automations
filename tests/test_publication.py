@@ -458,3 +458,33 @@ class TestPublication:
         assert pull_requests[0].repository == repository.repository
         assert commands[0].cwd == clean_repository.path
         assert commands[0].environment["GH_TOKEN"] == "token"
+
+    def test_no_change_publication_returns_no_pull_requests(self, tmp_path: Path) -> None:
+        """Succeed without publication when no repository changed."""
+
+        repository = RepositoryWorkspace(
+            repository="owner/repository",
+            branch="main",
+            path=tmp_path,
+            starting_commit="commit",
+            existing_branch=False,
+        )
+        workspace = AutomationWorkspace(
+            root=tmp_path,
+            home=tmp_path / "home",
+            branch="automation/review/run-123",
+            repositories=[repository],
+        )
+        runtime = DispatchRuntime(
+            github_token="token",
+            command_path="/bin",
+            github_home=tmp_path / "github-home",
+            codex_home=tmp_path / "codex-home",
+            runner_temp=tmp_path,
+            github_run_id="123",
+        )
+        result = AgentResult(summary="Completed.", repositories=[])
+
+        pull_requests = publish_pull_requests(workspace, runtime, result, [])
+
+        assert pull_requests == []

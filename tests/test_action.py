@@ -24,3 +24,10 @@ class TestAction:
         }
         assert inputs["automations-file-path"]["default"] == "automations.yaml"
         assert inputs["mode"]["default"] == "dispatch"
+
+    def test_documented_dispatch_disables_checkout_credentials(self) -> None:
+        """Keep the consumer workflow free of checkout credentials during agent execution."""
+
+        readme_path = Path(__file__).parents[1] / "README.md"
+
+        assert "persist-credentials: false" in readme_path.read_text(encoding="utf-8")

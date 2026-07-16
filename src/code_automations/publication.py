@@ -150,7 +150,11 @@ def publish_pull_requests(
             url=existing.url,
         )
 
-    return [pull_requests[repository.repository] for repository in workspace.repositories]
+    return [
+        pull_requests[repository.repository]
+        for repository in workspace.repositories
+        if repository.repository in pull_requests
+    ]
 
 
 def create_patch(

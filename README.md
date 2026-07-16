@@ -95,6 +95,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: owner/code-automations@v0
         with:
           automations-file-path: automations.yaml
