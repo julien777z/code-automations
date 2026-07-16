@@ -1,4 +1,3 @@
-import json
 import logging
 from pathlib import Path
 from typing import Final, Literal
@@ -21,7 +20,6 @@ type FragmentDirectory = Literal["prompts", "skills"]
 __all__: Final[tuple[str, ...]] = (
     "load_configuration",
     "read_fragment",
-    "schema_text",
     "validate_configuration",
 )
 
@@ -100,12 +98,6 @@ def load_configuration(path: Path) -> LoadedConfiguration:
                 read_fragment(loaded.root, "skills", skill)
 
     return loaded
-
-
-def schema_text() -> str:
-    """Render the canonical JSON Schema."""
-
-    return json.dumps(AutomationsConfig.model_json_schema(), indent=2, sort_keys=True) + "\n"
 
 
 def validate_configuration(config_path: Path, github_repository: str | None = None) -> None:

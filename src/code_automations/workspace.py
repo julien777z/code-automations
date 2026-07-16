@@ -86,15 +86,14 @@ def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> Aut
         run_command(
             CommandRequest(
                 command=[
-                    "gh",
-                    "repo",
+                    "git",
+                    *GIT_CREDENTIAL_OPTIONS,
                     "clone",
-                    repository.repository,
-                    str(path),
-                    "--",
                     "--branch",
                     repository.branch,
                     "--single-branch",
+                    f"https://github.com/{repository.repository}.git",
+                    str(path),
                 ],
                 cwd=root,
                 environment=environment,

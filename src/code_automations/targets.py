@@ -78,10 +78,12 @@ def resolve_targets(
 
             repository_name = self_repository if repository_key == "self" else repository_key
 
-            if repository_name in repository_names:
+            normalized_repository_name = repository_name.casefold()
+
+            if normalized_repository_name in repository_names:
                 raise ConfigurationError(f"duplicate resolved repository: {repository_name}")
 
-            repository_names.add(repository_name)
+            repository_names.add(normalized_repository_name)
             repositories.append(ResolvedRepository(repository=repository_name, branch=repository.branch))
 
         for name, automation in project.automations.items():

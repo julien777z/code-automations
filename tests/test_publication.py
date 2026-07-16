@@ -109,7 +109,7 @@ class TestPublication:
 
         monkeypatch.setattr("code_automations.publication.existing_pull_request", find_pull_request)
 
-        recovered = recovery_repositories(workspace, [], environment)
+        recovered = recovery_repositories(workspace, [], environment, tmp_path)
 
         assert recovered == [repository]
 
@@ -189,7 +189,7 @@ class TestPublication:
         monkeypatch.setattr("code_automations.publication.existing_pull_request", find_pull_request)
 
         with pytest.raises(DispatchError, match="closed"):
-            recovery_repositories(workspace, [repository], environment)
+            recovery_repositories(workspace, [repository], environment, tmp_path)
 
     def test_open_pull_request_is_retargeted_to_the_configured_base_branch(
         self,
@@ -250,7 +250,7 @@ class TestPublication:
         monkeypatch.setattr("code_automations.publication.existing_pull_request", find_pull_request)
         monkeypatch.setattr("code_automations.publication.run_command", run)
 
-        pull_request = publish_pull_request(workspace, repository, metadata, environment)
+        pull_request = publish_pull_request(tmp_path, workspace, repository, metadata, environment)
 
         assert str(pull_request.url) == str(existing.url)
         assert "--base" in commands[0].command
@@ -371,25 +371,27 @@ class TestPublication:
             assert "GH_TOKEN" not in environment
 
         def create_patch(
-            received_workspace: AutomationWorkspace,
+            publication_root: Path,
             received_repository: RepositoryWorkspace,
             environment: CommandEnvironment,
         ) -> Path:
             """Return an uncredentialed patch path."""
 
-            assert received_workspace is workspace
+            assert publication_root.parent == tmp_path
             assert received_repository is repository
             assert "GH_TOKEN" not in environment
 
             return tmp_path / "changes.patch"
 
         def create_checkout(
+            publication_root: Path,
             received_workspace: AutomationWorkspace,
             received_runtime: DispatchRuntime,
             received_repository: RepositoryWorkspace,
         ) -> RepositoryWorkspace:
             """Return the trusted publication checkout."""
 
+            assert publication_root.parent == tmp_path
             assert received_workspace is workspace
             assert received_runtime is runtime
             assert received_repository is repository
@@ -415,6 +417,7 @@ class TestPublication:
             return ""
 
         def publish(
+            publication_root: Path,
             received_workspace: AutomationWorkspace,
             received_repository: RepositoryWorkspace,
             metadata: PullRequestMetadata,
@@ -422,6 +425,7 @@ class TestPublication:
         ) -> PublishedPullRequest:
             """Publish through the clean checkout."""
 
+            assert publication_root.parent == tmp_path
             assert received_workspace is workspace
             assert received_repository is clean_repository
             assert metadata.repository == repository.repository
@@ -436,12 +440,14 @@ class TestPublication:
             received_workspace: AutomationWorkspace,
             changed: list[RepositoryWorkspace],
             environment: CommandEnvironment,
+            cwd: Path,
         ) -> list[RepositoryWorkspace]:
             """Report no previously pushed branches for this test."""
 
             assert received_workspace is workspace
             assert changed == [repository]
             assert environment["GH_TOKEN"] == "token"
+            assert cwd.parent == tmp_path
 
             return []
 

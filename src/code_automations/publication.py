@@ -1,4 +1,5 @@
 import logging
+import tempfile
 from pathlib import Path
 from typing import Final
 
@@ -77,8 +78,9 @@ def publish_pull_requests(
     metadata = {item.repository: item for item in result.repositories}
     environment = workspace_environment(workspace, runtime)
     github = github_environment(runtime)
+    publication_root = Path(tempfile.mkdtemp(prefix="publication-", dir=runtime.runner_temp))
 
-    recovery = recovery_repositories(workspace, changed, github)
+    recovery = recovery_repositories(workspace, changed, github, publication_root)
     repositories = [*changed, *recovery]
 
     publication_repositories: list[RepositoryWorkspace] = []
@@ -86,9 +88,14 @@ def publish_pull_requests(
     for repository in changed:
         commit_repository(repository, metadata[repository.repository], environment)
 
-        patch_path = create_patch(workspace, repository, environment)
+        patch_path = create_patch(publication_root, repository, environment)
 
-        publication_repository = create_publication_repository(workspace, runtime, repository)
+        publication_repository = create_publication_repository(
+            publication_root,
+            workspace,
+            runtime,
+            repository,
+        )
 
         apply_patch(publication_repository, patch_path, environment)
 
@@ -113,7 +120,14 @@ def publish_pull_requests(
         publication_repositories.append(publication_repository)
 
     for repository in recovery:
-        publication_repositories.append(create_publication_repository(workspace, runtime, repository))
+        publication_repositories.append(
+            create_publication_repository(
+                publication_root,
+                workspace,
+                runtime,
+                repository,
+            )
+        )
 
     pull_requests: dict[str, PublishedPullRequest] = {}
 
@@ -123,6 +137,7 @@ def publish_pull_requests(
         )
 
         pull_request = publish_pull_request(
+            publication_root,
             workspace,
             repository,
             repository_metadata,
@@ -135,7 +150,7 @@ def publish_pull_requests(
         if repository.repository in pull_requests or not repository.existing_branch:
             continue
 
-        existing = existing_pull_request(repository, workspace.branch, github, workspace.root)
+        existing = existing_pull_request(repository, workspace.branch, github, publication_root)
 
         if existing is None:
             raise DispatchError(f"automation pull request is missing for {repository.repository}")
@@ -158,7 +173,7 @@ def publish_pull_requests(
 
 
 def create_patch(
-    workspace: AutomationWorkspace,
+    publication_root: Path,
     repository: RepositoryWorkspace,
     environment: CommandEnvironment,
 ) -> Path:
@@ -171,35 +186,35 @@ def create_patch(
             environment=environment,
         )
     )
-    patch_path = workspace.root / f"{repository.repository.replace('/', '--')}.patch"
+    patch_path = publication_root / f"{repository.repository.replace('/', '--')}.patch"
     patch_path.write_text(patch, encoding="utf-8")
 
     return patch_path
 
 
 def create_publication_repository(
+    publication_root: Path,
     workspace: AutomationWorkspace,
     runtime: DispatchRuntime,
     repository: RepositoryWorkspace,
 ) -> RepositoryWorkspace:
     """Clone a clean checkout for credentialed publication."""
 
-    path = workspace.root / f"publication-{repository.repository.replace('/', '--')}"
+    path = publication_root / repository.repository.replace("/", "--")
     environment = github_environment(runtime)
     run_command(
         CommandRequest(
             command=[
-                "gh",
-                "repo",
+                "git",
+                *GIT_CREDENTIAL_OPTIONS,
                 "clone",
-                repository.repository,
-                str(path),
-                "--",
                 "--branch",
                 repository.branch,
                 "--single-branch",
+                f"https://github.com/{repository.repository}.git",
+                str(path),
             ],
-            cwd=workspace.root,
+            cwd=publication_root,
             environment=environment,
         )
     )
@@ -242,6 +257,7 @@ def recovery_repositories(
     workspace: AutomationWorkspace,
     changed: list[RepositoryWorkspace],
     environment: CommandEnvironment,
+    cwd: Path,
 ) -> list[RepositoryWorkspace]:
     """Find previously pushed branches whose pull request was not created."""
 
@@ -252,7 +268,7 @@ def recovery_repositories(
         if not repository.existing_branch:
             continue
 
-        existing = existing_pull_request(repository, workspace.branch, environment, workspace.root)
+        existing = existing_pull_request(repository, workspace.branch, environment, cwd)
 
         if existing is not None and existing.state is not PullRequestState.OPEN:
             raise DispatchError(
@@ -310,6 +326,7 @@ def commit_repository(
 
 
 def publish_pull_request(
+    publication_root: Path,
     workspace: AutomationWorkspace,
     repository: RepositoryWorkspace,
     metadata: PullRequestMetadata,
@@ -317,10 +334,10 @@ def publish_pull_request(
 ) -> PublishedPullRequest:
     """Create or update one pull request for a pushed automation branch."""
 
-    body_path = workspace.root / f"{repository.repository.replace('/', '--')}.md"
+    body_path = publication_root / f"{repository.repository.replace('/', '--')}.md"
     body_path.write_text(f"{metadata.body.rstrip()}\n\nGenerated by Code Automations.\n", encoding="utf-8")
 
-    existing = existing_pull_request(repository, workspace.branch, environment, workspace.root)
+    existing = existing_pull_request(repository, workspace.branch, environment, publication_root)
 
     if existing is None:
         output = run_command(

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -6,11 +7,11 @@ from code_automations.cli import run
 from code_automations.configuration import (
     load_configuration,
     read_fragment,
-    schema_text,
     validate_configuration,
 )
 from code_automations.errors import ConfigurationError
 from code_automations.models.cli import CliArguments
+from code_automations.models.configuration import AutomationsConfig
 from code_automations.rendering import render_target
 from code_automations.targets import find_target
 
@@ -81,6 +82,21 @@ class TestConfiguration:
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
             configuration.replace("owner/secondary:", "owner/repository:"),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
+            validate_configuration(automation_config_path, "owner/repository")
+
+    def test_case_insensitive_duplicate_repositories_are_rejected(
+        self,
+        automation_config_path: Path,
+    ) -> None:
+        """Reject explicit repositories that duplicate self with different casing."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        automation_config_path.write_text(
+            configuration.replace("owner/secondary", "OWNER/REPOSITORY"),
             encoding="utf-8",
         )
 
@@ -253,4 +269,6 @@ class TestConfiguration:
 
         schema_path = Path(__file__).parents[1] / "automations.schema.json"
 
-        assert schema_path.read_text(encoding="utf-8") == schema_text()
+        expected = json.dumps(AutomationsConfig.model_json_schema(), indent=2, sort_keys=True) + "\n"
+
+        assert schema_path.read_text(encoding="utf-8") == expected
