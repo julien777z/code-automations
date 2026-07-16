@@ -28,8 +28,10 @@ def execute_automation(request: ExecutionRequest, runtime: DispatchRuntime) -> E
     """Execute and publish one multi-repository automation."""
 
     workspace = create_workspace(request, runtime)
+
     prompt = render_target(request.loaded, request.target, workspace.repositories)
     result = run_automation(workspace, runtime, prompt)
+
     changed = changed_repositories(workspace, runtime)
     changed_names = [repository.repository for repository in changed]
 

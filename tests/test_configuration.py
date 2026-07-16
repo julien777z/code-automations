@@ -11,7 +11,7 @@ from code_automations.configuration import (
 )
 from code_automations.errors import ConfigurationError
 from code_automations.models.cli import CliArguments
-from code_automations.models.configuration import AutomationsConfig
+from code_automations.models.configuration import AutomationsConfig, validate_branch
 from code_automations.rendering import render_target
 from code_automations.targets import find_target
 
@@ -103,6 +103,24 @@ class TestConfiguration:
         with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
             validate_configuration(automation_config_path, "owner/repository")
 
+    def test_explicit_case_insensitive_duplicates_are_rejected(
+        self,
+        automation_config_path: Path,
+    ) -> None:
+        """Reject case-only duplicates without requiring the reserved self repository."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        configuration = configuration.replace(
+            "      self:\n        branch: main\n", "      owner/repository: {}\n"
+        )
+        automation_config_path.write_text(
+            configuration.replace("owner/secondary", "OWNER/REPOSITORY"),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
+            validate_configuration(automation_config_path)
+
     @pytest.mark.parametrize("repository", ["owner/.", "owner/..", "owner/repository.git"])
     def test_invalid_repository_path_segments_are_rejected(
         self,
@@ -119,6 +137,12 @@ class TestConfiguration:
 
         with pytest.raises(ConfigurationError, match="invalid repository identifier"):
             load_configuration(automation_config_path)
+
+    def test_control_characters_are_rejected_from_branches(self) -> None:
+        """Reject branch names that Git cannot represent."""
+
+        with pytest.raises(ValueError, match="invalid Git branch name"):
+            validate_branch("topic\x7fbad")
 
     def test_missing_fragment_is_rejected(self, automation_config_path: Path) -> None:
         """Reject a missing prompt or skill file."""

@@ -104,5 +104,8 @@ def validate_configuration(config_path: Path, github_repository: str | None = No
     """Validate one automation configuration and its referenced resources."""
 
     loaded = load_configuration(config_path)
-    if has_self_repository(loaded):
-        resolve_targets(loaded, resolve_self_repository(loaded.root, github_repository))
+    self_repository = (
+        resolve_self_repository(loaded.root, github_repository) if has_self_repository(loaded) else None
+    )
+
+    resolve_targets(loaded, self_repository)

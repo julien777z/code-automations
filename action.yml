@@ -39,6 +39,7 @@ runs:
         CODEX_AUTH_JSON: ${{ inputs.codex-auth-json }}
         AUTOMATION_GITHUB_TOKEN: ${{ inputs.github-token }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
         GITHUB_REF: ${{ github.ref }}
       run: |
         set -euo pipefail
@@ -46,6 +47,13 @@ runs:
         case "$AUTOMATION_MODE" in
           validate) ;;
           dispatch)
+            case "$GITHUB_EVENT_NAME" in
+              schedule|workflow_dispatch) ;;
+              *)
+                echo "dispatch is only allowed for scheduled and manual workflow runs" >&2
+                exit 1
+                ;;
+            esac
             test -n "$CODEX_AUTH_JSON" || {
               echo "codex-auth-json is required in dispatch mode" >&2
               exit 1

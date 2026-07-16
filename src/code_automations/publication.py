@@ -202,6 +202,7 @@ def create_publication_repository(
 
     path = publication_root / repository.repository.replace("/", "--")
     environment = github_environment(runtime)
+
     run_command(
         CommandRequest(
             command=[

@@ -195,6 +195,7 @@ def verify_origin(repository: RepositoryWorkspace, environment: CommandEnvironme
             environment=environment,
         )
     ).strip()
+
     match = GITHUB_ORIGIN_PATTERN.fullmatch(origin)
 
     if match is None or match.group(1) != repository.repository:

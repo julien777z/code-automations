@@ -24,6 +24,8 @@ class TestAction:
         }
         assert inputs["automations-file-path"]["default"] == "automations.yaml"
         assert inputs["mode"]["default"] == "dispatch"
+        assert "GITHUB_EVENT_NAME" in action["runs"]["steps"][0]["env"]
+        assert "schedule|workflow_dispatch" in action["runs"]["steps"][0]["run"]
 
     def test_documented_dispatch_disables_checkout_credentials(self) -> None:
         """Keep the consumer workflow free of checkout credentials during agent execution."""

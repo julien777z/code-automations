@@ -65,7 +65,10 @@ def validate_branch(value: str) -> str:
         or "@{" in value
         or "//" in value
         or "\\" in value
-        or any(character.isspace() or ord(character) < 32 or character in "~^:?*[" for character in value)
+        or any(
+            character.isspace() or ord(character) < 32 or ord(character) == 127 or character in "~^:?*["
+            for character in value
+        )
     )
 
     if invalid:
