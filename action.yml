@@ -113,10 +113,13 @@ runs:
         CODEX_AUTH_JSON: ${{ inputs.codex-auth-json }}
       run: |
         authentication_home="$RUNNER_TEMP/automation-authentication"
+        github_home="$RUNNER_TEMP/automation-github-home"
         install -d -m 700 "$authentication_home"
+        install -d -m 700 "$github_home"
         printf '%s' "$CODEX_AUTH_JSON" > "$authentication_home/auth.json"
         chmod 600 "$authentication_home/auth.json"
         printf 'home=%s\n' "$authentication_home" >> "$GITHUB_OUTPUT"
+        printf 'github-home=%s\n' "$github_home" >> "$GITHUB_OUTPUT"
     - name: Run Automations
       id: dispatch
       if: inputs.mode == 'dispatch'
@@ -124,11 +127,11 @@ runs:
       env:
         AUTOMATION_GITHUB_TOKEN: ${{ inputs.github-token }}
         AUTOMATION_CODEX_HOME: ${{ steps.authentication.outputs.home }}
+        AUTOMATION_GITHUB_HOME: ${{ steps.authentication.outputs.github-home }}
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
         RUN_AUTOMATION: ${{ inputs.run-automation }}
       run: |
         export AUTOMATION_COMMAND_PATH="$PATH"
-        export AUTOMATION_HOME="$HOME"
         if [ -n "$RUN_AUTOMATION" ]; then
           poetry --directory "$GITHUB_ACTION_PATH" run code-automations --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH" dispatch --automation "$RUN_AUTOMATION"
         else
@@ -158,4 +161,4 @@ runs:
     - name: Remove Automation Authentication
       if: always() && inputs.mode == 'dispatch'
       shell: bash
-      run: rm -rf "${{ steps.authentication.outputs.home }}"
+      run: rm -rf "${{ steps.authentication.outputs.home }}" "${{ steps.authentication.outputs.github-home }}"

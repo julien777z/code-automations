@@ -55,6 +55,7 @@ def validate_branch(value: str) -> str:
         or value.startswith(("-", ".", "/"))
         or value.endswith((".", "/", ".lock"))
         or value == "@"
+        or value == "HEAD"
         or ".." in value
         or "@{" in value
         or "//" in value
@@ -214,6 +215,12 @@ class ProjectConfig(BaseModel):
 
         if invalid_name is not None:
             raise ValueError(f"invalid automation name: {invalid_name}")
+
+        for name in value:
+            try:
+                validate_branch(f"automation/{name}/run")
+            except ValueError as error:
+                raise ValueError(f"invalid automation name: {name}") from error
 
         return value
 

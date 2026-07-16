@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from code_automations.errors import DispatchError
 from code_automations.models.execution import AgentResult, AutomationWorkspace
-from code_automations.models.processes import CommandRequest
+from code_automations.models.processes import CommandEnvironment, CommandRequest
 from code_automations.models.runtime import DispatchRuntime
 from code_automations.processes import run_command
 
@@ -43,11 +43,12 @@ def run_automation(workspace: AutomationWorkspace, runtime: DispatchRuntime, pro
         ]
     )
 
-    environment = {
-        "CODEX_HOME": str(runtime.codex_home),
-        "HOME": runtime.home,
-        "PATH": runtime.command_path,
-    }
+    environment = CommandEnvironment(
+        CODEX_HOME=str(runtime.codex_home),
+        HOME=str(workspace.home),
+        PATH=runtime.command_path,
+    )
+
     run_command(
         CommandRequest(
             command=command,

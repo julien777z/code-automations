@@ -26,6 +26,7 @@ class TestExecution:
 
         workspace = AutomationWorkspace(
             root=tmp_path,
+            home=tmp_path / "home",
             branch="automation/hello-world/run-123",
             repositories=[
                 RepositoryWorkspace(
@@ -33,19 +34,21 @@ class TestExecution:
                     branch="main",
                     path=tmp_path / "primary",
                     starting_commit="primary",
+                    existing_branch=False,
                 ),
                 RepositoryWorkspace(
                     repository="owner/secondary",
                     branch="develop",
                     path=tmp_path / "secondary",
                     starting_commit="secondary",
+                    existing_branch=False,
                 ),
             ],
         )
         runtime = DispatchRuntime(
             github_token="private-token",
             command_path="/usr/bin",
-            home="/tmp/home",
+            github_home=tmp_path / "github-home",
             codex_home=tmp_path / "auth",
             runner_temp=tmp_path,
             github_run_id="123",

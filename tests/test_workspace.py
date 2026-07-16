@@ -42,7 +42,7 @@ class TestWorkspace:
         runtime = DispatchRuntime(
             github_token="token",
             command_path="/bin",
-            home="/tmp",
+            github_home=tmp_path / "github-home",
             codex_home=tmp_path,
             runner_temp=tmp_path,
             github_run_id="123",

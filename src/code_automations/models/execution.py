@@ -24,6 +24,7 @@ class RepositoryWorkspace(BaseModel):
     branch: str
     path: Path
     starting_commit: str
+    existing_branch: bool
 
 
 class AutomationWorkspace(BaseModel):
@@ -32,6 +33,7 @@ class AutomationWorkspace(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     root: Path
+    home: Path
     branch: str
     repositories: list[RepositoryWorkspace] = Field(min_length=1)
 

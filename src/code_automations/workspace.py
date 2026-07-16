@@ -7,32 +7,51 @@ from typing import Final
 from code_automations.errors import DispatchError
 from code_automations.models.dispatching import ExecutionRequest
 from code_automations.models.execution import AutomationWorkspace, RepositoryWorkspace
-from code_automations.models.processes import CommandRequest
+from code_automations.models.processes import CommandEnvironment, CommandRequest
 from code_automations.models.runtime import DispatchRuntime
 from code_automations.processes import run_command
 
 __all__: Final[tuple[str, ...]] = (
+    "GIT_CREDENTIAL_OPTIONS",
     "create_workspace",
     "github_environment",
     "output_branch",
     "verify_origin",
+    "workspace_environment",
 )
 
 GIT_AUTHOR_NAME: Final[str] = "github-actions[bot]"
 GIT_AUTHOR_EMAIL: Final[str] = "41898282+github-actions[bot]@users.noreply.github.com"
+GIT_CREDENTIAL_OPTIONS: Final[tuple[str, ...]] = (
+    "-c",
+    "credential.helper=",
+    "-c",
+    "credential.https://github.com.helper=!gh auth git-credential",
+)
 GITHUB_ORIGIN_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)([A-Za-z0-9._-]+/[A-Za-z0-9._-]+?)(?:\.git)?$"
 )
 
 
-def github_environment(runtime: DispatchRuntime) -> dict[str, str]:
+def github_environment(runtime: DispatchRuntime) -> CommandEnvironment:
     """Build the restricted environment for GitHub CLI and Git commands."""
 
-    return {
-        "GH_TOKEN": runtime.github_token,
-        "HOME": runtime.home,
-        "PATH": runtime.command_path,
-    }
+    return CommandEnvironment(
+        GH_TOKEN=runtime.github_token,
+        HOME=str(runtime.github_home),
+        PATH=runtime.command_path,
+        GIT_CONFIG_GLOBAL="/dev/null",
+        GIT_CONFIG_NOSYSTEM="1",
+    )
+
+
+def workspace_environment(workspace: AutomationWorkspace, runtime: DispatchRuntime) -> CommandEnvironment:
+    """Build the uncredentialed environment for agent-owned repository operations."""
+
+    return CommandEnvironment(
+        HOME=str(workspace.home),
+        PATH=runtime.command_path,
+    )
 
 
 def output_branch(request: ExecutionRequest, runtime: DispatchRuntime) -> str:
@@ -50,16 +69,11 @@ def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> Aut
     """Clone and prepare every repository for one automation execution."""
 
     root = Path(tempfile.mkdtemp(prefix=f"{request.target.name}-", dir=runtime.runner_temp))
+    home = root / "home"
+    home.mkdir(mode=0o700)
+
     branch = output_branch(request, runtime)
     environment = github_environment(runtime)
-
-    run_command(
-        CommandRequest(
-            command=["gh", "auth", "setup-git"],
-            cwd=root,
-            environment=environment,
-        )
-    )
 
     repositories: list[RepositoryWorkspace] = []
 
@@ -82,7 +96,8 @@ def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> Aut
                 environment=environment,
             )
         )
-        prepare_branch(path, repository.branch, branch, environment)
+
+        existing_branch = prepare_branch(path, repository.branch, branch, environment)
         starting_commit = run_command(
             CommandRequest(
                 command=["git", "rev-parse", "HEAD"],
@@ -97,18 +112,24 @@ def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> Aut
                 branch=repository.branch,
                 path=path,
                 starting_commit=starting_commit,
+                existing_branch=existing_branch,
             )
         )
 
-    return AutomationWorkspace(root=root, branch=branch, repositories=repositories)
+    return AutomationWorkspace(root=root, home=home, branch=branch, repositories=repositories)
 
 
-def prepare_branch(path: Path, base_branch: str, output: str, environment: dict[str, str]) -> None:
+def prepare_branch(
+    path: Path,
+    base_branch: str,
+    output: str,
+    environment: CommandEnvironment,
+) -> bool:
     """Check out an existing automation branch or create one from its base branch."""
 
     branch_exists = run_command(
         CommandRequest(
-            command=["git", "ls-remote", "--heads", "origin", output],
+            command=["git", *GIT_CREDENTIAL_OPTIONS, "ls-remote", "--heads", "origin", output],
             cwd=path,
             environment=environment,
         )
@@ -117,11 +138,18 @@ def prepare_branch(path: Path, base_branch: str, output: str, environment: dict[
     if branch_exists:
         run_command(
             CommandRequest(
-                command=["git", "fetch", "origin", output],
+                command=[
+                    "git",
+                    *GIT_CREDENTIAL_OPTIONS,
+                    "fetch",
+                    "origin",
+                    f"{output}:refs/remotes/origin/{output}",
+                ],
                 cwd=path,
                 environment=environment,
             )
         )
+
         start_point = f"origin/{output}"
     else:
         start_point = f"origin/{base_branch}"
@@ -133,6 +161,7 @@ def prepare_branch(path: Path, base_branch: str, output: str, environment: dict[
             environment=environment,
         )
     )
+
     run_command(
         CommandRequest(
             command=["git", "config", "user.name", GIT_AUTHOR_NAME],
@@ -140,6 +169,7 @@ def prepare_branch(path: Path, base_branch: str, output: str, environment: dict[
             environment=environment,
         )
     )
+
     run_command(
         CommandRequest(
             command=["git", "config", "user.email", GIT_AUTHOR_EMAIL],
@@ -148,8 +178,10 @@ def prepare_branch(path: Path, base_branch: str, output: str, environment: dict[
         )
     )
 
+    return bool(branch_exists)
 
-def verify_origin(repository: RepositoryWorkspace, environment: dict[str, str]) -> None:
+
+def verify_origin(repository: RepositoryWorkspace, environment: CommandEnvironment) -> None:
     """Require the repository origin to remain its configured GitHub remote."""
 
     origin = run_command(

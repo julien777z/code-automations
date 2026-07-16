@@ -139,6 +139,7 @@ class TestConfiguration:
             "environment: Cloud",
             "attempts: 2",
             "branch: bad branch",
+            "branch: HEAD",
             "unknown: true",
         ],
     )
@@ -156,6 +157,23 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError):
+            load_configuration(automation_config_path)
+
+    @pytest.mark.parametrize("name", ["foo..bar", "foo.lock"])
+    def test_unsafe_automation_names_are_rejected(
+        self,
+        automation_config_path: Path,
+        name: str,
+    ) -> None:
+        """Reject names that would create invalid automation branches."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        automation_config_path.write_text(
+            configuration.replace("hello-world:", f"{name}:"),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigurationError, match="invalid automation name"):
             load_configuration(automation_config_path)
 
     def test_duplicate_global_names_are_rejected(self, automation_config_path: Path) -> None:

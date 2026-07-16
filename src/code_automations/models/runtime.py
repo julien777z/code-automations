@@ -17,7 +17,7 @@ class ActionsRuntime(BaseSettings):
     github_run_id: str | None = Field(default=None, validation_alias="GITHUB_RUN_ID")
     github_token: str | None = Field(default=None, validation_alias="AUTOMATION_GITHUB_TOKEN")
     command_path: str | None = Field(default=None, validation_alias="AUTOMATION_COMMAND_PATH")
-    home: str | None = Field(default=None, validation_alias="AUTOMATION_HOME")
+    github_home: Path | None = Field(default=None, validation_alias="AUTOMATION_GITHUB_HOME")
     codex_home: Path | None = Field(default=None, validation_alias="AUTOMATION_CODEX_HOME")
     runner_temp: Path | None = Field(default=None, validation_alias="RUNNER_TEMP")
 
@@ -29,7 +29,7 @@ class DispatchRuntime(BaseModel):
 
     github_token: str
     command_path: str
-    home: str
+    github_home: Path
     codex_home: Path
     runner_temp: Path
     github_run_id: str
@@ -41,7 +41,7 @@ def resolve_dispatch_runtime(runtime: ActionsRuntime) -> DispatchRuntime:
     required = (
         ("github_token", runtime.github_token),
         ("command_path", runtime.command_path),
-        ("home", runtime.home),
+        ("github_home", runtime.github_home),
         ("codex_home", runtime.codex_home),
         ("runner_temp", runtime.runner_temp),
         ("github_run_id", runtime.github_run_id),
