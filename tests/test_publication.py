@@ -91,12 +91,14 @@ class TestPublication:
             received_repository: RepositoryWorkspace,
             output_branch: str,
             received_environment: CommandEnvironment,
+            cwd: Path,
         ) -> ExistingPullRequest | None:
             """Report that the pushed branch has no pull request."""
 
             assert received_repository is repository
             assert output_branch == workspace.branch
             assert received_environment is environment
+            assert cwd == workspace.root
 
             return None
 
@@ -188,7 +190,12 @@ class TestPublication:
 
         monkeypatch.setattr("code_automations.publication.run_command", run)
 
-        pull_request = existing_pull_request(repository, "automation/review/run-123", environment)
+        pull_request = existing_pull_request(
+            repository,
+            "automation/review/run-123",
+            environment,
+            tmp_path,
+        )
 
         assert pull_request is not None
         assert str(pull_request.url) == "https://github.com/owner/repository/pull/1"
