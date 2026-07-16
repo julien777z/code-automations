@@ -75,7 +75,7 @@ on:
     inputs:
       run-automation:
         description: Globally unique automation name
-        required: true
+        required: false
         type: string
 
 concurrency:
