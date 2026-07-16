@@ -6,346 +6,89 @@ from code_automations.errors import DispatchError
 from code_automations.models.execution import (
     AgentResult,
     AutomationWorkspace,
-    ExistingPullRequest,
     PublishedPullRequest,
     PullRequestMetadata,
-    PullRequestOwner,
-    PullRequestRepository,
-    PullRequestState,
     RepositoryWorkspace,
 )
 from code_automations.models.processes import CommandEnvironment, CommandRequest
 from code_automations.models.runtime import DispatchRuntime
-from code_automations.publication import (
-    existing_pull_request,
-    publish_pull_request,
-    publish_pull_requests,
-    recovery_metadata,
-    recovery_repositories,
-)
-from code_automations.workspace import GIT_CREDENTIAL_OPTIONS, prepare_branch
+from code_automations.publication import publish_pull_request, publish_pull_requests
+from code_automations.workspace import prepare_branch
 
 
 class TestPublication:
-    """Test retry-safe branch restoration and publication recovery."""
+    """Test create-only branch and pull request publication."""
 
-    def test_existing_branch_fetches_a_remote_tracking_ref(
+    def test_existing_output_branch_fails_before_checkout(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        """Restore a retry branch through an explicit remote-tracking refspec."""
+        """Treat a generated branch collision as a terminal conflict."""
 
         requests: list[CommandRequest] = []
         environment = CommandEnvironment(HOME=str(tmp_path), PATH="/bin")
 
         def run(request: CommandRequest) -> str:
-            """Capture branch preparation commands."""
+            """Report an existing remote branch."""
 
             requests.append(request)
 
-            if "ls-remote" in request.command:
-                return "commit\trefs/heads/automation/review/run-123\n"
-
-            return ""
+            return "commit\trefs/heads/automation/review/hash\n"
 
         monkeypatch.setattr("code_automations.workspace.run_command", run)
 
-        existing = prepare_branch(
-            tmp_path,
-            "main",
-            "automation/review/run-123",
-            environment,
-        )
+        with pytest.raises(DispatchError, match="already exists"):
+            prepare_branch(tmp_path, "main", "automation/review/hash", environment)
 
-        fetch = next(request for request in requests if "fetch" in request.command)
+        assert len(requests) == 1
+        assert "ls-remote" in requests[0].command
 
-        assert existing is True
-
-        assert fetch.command == [
-            "git",
-            *GIT_CREDENTIAL_OPTIONS,
-            "fetch",
-            "origin",
-            "automation/review/run-123:refs/remotes/origin/automation/review/run-123",
-        ]
-
-    def test_recovery_creates_missing_pull_request_for_existing_branch(
+    def test_pull_request_is_created_without_lookup_or_edit(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        """Recover a pushed branch when a prior run did not create its pull request."""
+        """Create one new pull request against the configured base branch."""
 
-        repository = RepositoryWorkspace(
-            repository="owner/repository",
-            branch="main",
-            path=tmp_path,
-            starting_commit="commit",
-            existing_branch=True,
-        )
-        workspace = AutomationWorkspace(
-            root=tmp_path,
-            home=tmp_path / "home",
-            branch="automation/review/run-123",
-            repositories=[repository],
-        )
-        environment = CommandEnvironment(HOME=str(tmp_path), PATH="/bin")
-
-        def find_pull_request(
-            received_repository: RepositoryWorkspace,
-            output_branch: str,
-            received_environment: CommandEnvironment,
-            cwd: Path,
-        ) -> ExistingPullRequest | None:
-            """Report that the pushed branch has no pull request."""
-
-            assert received_repository is repository
-            assert output_branch == workspace.branch
-            assert received_environment is environment
-            assert cwd == workspace.root
-
-            return None
-
-        monkeypatch.setattr("code_automations.publication.existing_pull_request", find_pull_request)
-
-        recovered = recovery_repositories(workspace, [], environment, tmp_path)
-
-        assert recovered == [repository]
-
-    def test_recovery_metadata_uses_the_existing_commit_title(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        """Build metadata for a branch that was pushed by an earlier run."""
-
-        repository = RepositoryWorkspace(
-            repository="owner/repository",
-            branch="main",
-            path=tmp_path,
-            starting_commit="commit",
-            existing_branch=True,
-        )
-        environment = CommandEnvironment(HOME=str(tmp_path), PATH="/bin")
-
-        def run(request: CommandRequest) -> str:
-            """Return the prior commit subject."""
-
-            assert request.command == ["git", "log", "-1", "--format=%s"]
-
-            return "Update review rules\n"
-
-        monkeypatch.setattr("code_automations.publication.run_command", run)
-
-        metadata = recovery_metadata(repository, environment)
-
-        assert metadata.title == "Update review rules"
-        assert metadata.repository == "owner/repository"
-
-    def test_closed_existing_pull_request_blocks_changed_branch_publication(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        """Reject a closed deterministic pull request before a changed retry pushes."""
-
-        repository = RepositoryWorkspace(
-            repository="owner/repository",
-            branch="main",
-            path=tmp_path,
-            starting_commit="commit",
-            existing_branch=True,
-        )
-        workspace = AutomationWorkspace(
-            root=tmp_path,
-            home=tmp_path / "home",
-            branch="automation/review/run-123",
-            repositories=[repository],
-        )
-        environment = CommandEnvironment(HOME=str(tmp_path), PATH="/bin")
-        pull_request = ExistingPullRequest(
-            url="https://github.com/owner/repository/pull/1",
-            state=PullRequestState.CLOSED,
-            headRepository=PullRequestRepository(name="repository"),
-            headRepositoryOwner=PullRequestOwner(login="owner"),
-        )
-
-        def find_pull_request(
-            received_repository: RepositoryWorkspace,
-            output_branch: str,
-            received_environment: CommandEnvironment,
-            cwd: Path,
-        ) -> ExistingPullRequest | None:
-            """Return the closed deterministic pull request."""
-
-            assert received_repository is repository
-            assert output_branch == workspace.branch
-            assert received_environment is environment
-            assert cwd == workspace.root
-
-            return pull_request
-
-        monkeypatch.setattr("code_automations.publication.existing_pull_request", find_pull_request)
-
-        with pytest.raises(DispatchError, match="closed"):
-            recovery_repositories(workspace, [repository], environment, tmp_path)
-
-    def test_open_pull_request_is_retargeted_to_the_configured_base_branch(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        """Set the configured target branch while updating an existing pull request."""
-
-        repository = RepositoryWorkspace(
-            repository="owner/repository",
-            branch="develop",
-            path=tmp_path,
-            starting_commit="commit",
-            existing_branch=True,
-        )
-        workspace = AutomationWorkspace(
-            root=tmp_path,
-            home=tmp_path / "home",
-            branch="automation/review/run-123",
-            repositories=[repository],
-        )
+        repository = self.repository(tmp_path, branch="develop")
+        workspace = self.workspace(tmp_path, repository)
         metadata = PullRequestMetadata(
             repository=repository.repository,
             title="Update repository",
             body="Summary",
         )
+
         environment = CommandEnvironment(GH_TOKEN="token", HOME=str(tmp_path), PATH="/bin")
-        existing = ExistingPullRequest(
-            url="https://github.com/owner/repository/pull/1",
-            state=PullRequestState.OPEN,
-            headRepository=PullRequestRepository(name="repository"),
-            headRepositoryOwner=PullRequestOwner(login="owner"),
-        )
-        commands: list[CommandRequest] = []
-
-        def find_pull_request(
-            received_repository: RepositoryWorkspace,
-            output_branch: str,
-            received_environment: CommandEnvironment,
-            cwd: Path,
-        ) -> ExistingPullRequest | None:
-            """Return the existing open pull request."""
-
-            assert received_repository is repository
-            assert output_branch == workspace.branch
-            assert received_environment is environment
-            assert cwd == workspace.root
-
-            return existing
+        requests: list[CommandRequest] = []
 
         def run(request: CommandRequest) -> str:
-            """Capture the pull request update command."""
+            """Capture the pull request creation command."""
 
-            commands.append(request)
+            requests.append(request)
 
-            return ""
+            return "https://github.com/owner/repository/pull/1\n"
 
-        monkeypatch.setattr("code_automations.publication.existing_pull_request", find_pull_request)
         monkeypatch.setattr("code_automations.publication.run_command", run)
 
         pull_request = publish_pull_request(tmp_path, workspace, repository, metadata, environment)
 
-        assert str(pull_request.url) == str(existing.url)
-        assert "--base" in commands[0].command
-        assert commands[0].command[commands[0].command.index("--base") + 1] == "develop"
-
-    def test_pull_request_lookup_ignores_matching_branches_from_forks(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        """Select the configured repository's pull request for a shared branch name."""
-
-        repository = RepositoryWorkspace(
-            repository="owner/repository",
-            branch="main",
-            path=tmp_path,
-            starting_commit="commit",
-            existing_branch=True,
-        )
-        environment = CommandEnvironment(HOME=str(tmp_path), PATH="/bin")
-
-        def run(request: CommandRequest) -> str:
-            """Return pull requests from the configured repository and a fork."""
-
-            assert request.command == [
-                "gh",
-                "pr",
-                "list",
-                "--repo",
-                "owner/repository",
-                "--head",
-                "automation/review/run-123",
-                "--state",
-                "all",
-                "--limit",
-                "1000",
-                "--json",
-                "url,state,headRepository,headRepositoryOwner",
-            ]
-
-            return """[
-  {
-    "url": "https://github.com/owner/repository/pull/1",
-    "state": "OPEN",
-    "headRepository": {"name": "repository"},
-    "headRepositoryOwner": {"login": "owner"}
-  },
-  {
-    "url": "https://github.com/fork/repository/pull/2",
-    "state": "OPEN",
-    "headRepository": {"name": "repository"},
-    "headRepositoryOwner": {"login": "fork"}
-  }
-]"""
-
-        monkeypatch.setattr("code_automations.publication.run_command", run)
-
-        pull_request = existing_pull_request(
-            repository,
-            "automation/review/run-123",
-            environment,
-            tmp_path,
-        )
-
-        assert pull_request is not None
         assert str(pull_request.url) == "https://github.com/owner/repository/pull/1"
+        assert requests[0].command[:3] == ["gh", "pr", "create"]
+        assert requests[0].command[requests[0].command.index("--base") + 1] == "develop"
+        assert "edit" not in requests[0].command
+        assert "list" not in requests[0].command
 
-    def test_publication_pushes_from_the_clean_checkout(
+    def test_publication_pushes_before_creating_from_the_clean_checkout(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        """Keep GitHub credentials out of the agent-owned checkout."""
+        """Keep GitHub credentials and publication outside the agent checkout."""
 
-        repository = RepositoryWorkspace(
-            repository="owner/repository",
-            branch="main",
-            path=tmp_path / "agent",
-            starting_commit="commit",
-            existing_branch=False,
-        )
-        workspace = AutomationWorkspace(
-            root=tmp_path,
-            home=tmp_path / "home",
-            branch="automation/review/run-123",
-            repositories=[repository],
-        )
-        runtime = DispatchRuntime(
-            github_token="token",
-            command_path="/bin",
-            github_home=tmp_path / "github-home",
-            codex_home=tmp_path / "codex-home",
-            runner_temp=tmp_path,
-            github_run_id="123",
-        )
+        repository = self.repository(tmp_path / "agent")
+        workspace = self.workspace(tmp_path, repository)
+        runtime = self.runtime(tmp_path)
         result = AgentResult(
             summary="Completed.",
             repositories=[
@@ -356,8 +99,9 @@ class TestPublication:
                 )
             ],
         )
+
         clean_repository = repository.model_copy(update={"path": tmp_path / "publication"})
-        commands: list[CommandRequest] = []
+        events: list[str] = []
 
         def commit(
             received_repository: RepositoryWorkspace,
@@ -389,7 +133,7 @@ class TestPublication:
             received_runtime: DispatchRuntime,
             received_repository: RepositoryWorkspace,
         ) -> RepositoryWorkspace:
-            """Return the trusted publication checkout."""
+            """Return the clean publication checkout."""
 
             assert publication_root.parent == tmp_path
             assert received_workspace is workspace
@@ -403,7 +147,7 @@ class TestPublication:
             patch_path: Path,
             environment: CommandEnvironment,
         ) -> None:
-            """Require uncredentialed patch application in the clean checkout."""
+            """Require uncredentialed patch application."""
 
             assert received_repository is clean_repository
             assert patch_path == tmp_path / "changes.patch"
@@ -412,7 +156,9 @@ class TestPublication:
         def run(request: CommandRequest) -> str:
             """Capture the authenticated push command."""
 
-            commands.append(request)
+            assert request.cwd == clean_repository.path
+            assert request.environment["GH_TOKEN"] == "token"
+            events.append("push")
 
             return ""
 
@@ -423,74 +169,73 @@ class TestPublication:
             metadata: PullRequestMetadata,
             environment: CommandEnvironment,
         ) -> PublishedPullRequest:
-            """Publish through the clean checkout."""
+            """Create the pull request after its branch is pushed."""
 
+            assert events == ["push"]
             assert publication_root.parent == tmp_path
             assert received_workspace is workspace
             assert received_repository is clean_repository
             assert metadata.repository == repository.repository
             assert environment["GH_TOKEN"] == "token"
+            events.append("pull-request")
 
             return PublishedPullRequest(
                 repository=repository.repository,
                 url="https://github.com/owner/repository/pull/1",
             )
 
-        def recover(
-            received_workspace: AutomationWorkspace,
-            changed: list[RepositoryWorkspace],
-            environment: CommandEnvironment,
-            cwd: Path,
-        ) -> list[RepositoryWorkspace]:
-            """Report no previously pushed branches for this test."""
-
-            assert received_workspace is workspace
-            assert changed == [repository]
-            assert environment["GH_TOKEN"] == "token"
-            assert cwd.parent == tmp_path
-
-            return []
-
         monkeypatch.setattr("code_automations.publication.commit_repository", commit)
         monkeypatch.setattr("code_automations.publication.create_patch", create_patch)
         monkeypatch.setattr("code_automations.publication.create_publication_repository", create_checkout)
         monkeypatch.setattr("code_automations.publication.apply_patch", apply)
-        monkeypatch.setattr("code_automations.publication.recovery_repositories", recover)
         monkeypatch.setattr("code_automations.publication.run_command", run)
         monkeypatch.setattr("code_automations.publication.publish_pull_request", publish)
 
         pull_requests = publish_pull_requests(workspace, runtime, result, [repository])
 
+        assert events == ["push", "pull-request"]
         assert pull_requests[0].repository == repository.repository
-        assert commands[0].cwd == clean_repository.path
-        assert commands[0].environment["GH_TOKEN"] == "token"
 
     def test_no_change_publication_returns_no_pull_requests(self, tmp_path: Path) -> None:
         """Succeed without publication when no repository changed."""
 
-        repository = RepositoryWorkspace(
+        repository = self.repository(tmp_path)
+        workspace = self.workspace(tmp_path, repository)
+        result = AgentResult(summary="Completed.", repositories=[])
+
+        assert publish_pull_requests(workspace, self.runtime(tmp_path), result, []) == []
+
+    def repository(self, path: Path, branch: str = "main") -> RepositoryWorkspace:
+        """Build a repository workspace."""
+
+        return RepositoryWorkspace(
             repository="owner/repository",
-            branch="main",
-            path=tmp_path,
+            branch=branch,
+            path=path,
             starting_commit="commit",
-            existing_branch=False,
         )
-        workspace = AutomationWorkspace(
-            root=tmp_path,
-            home=tmp_path / "home",
-            branch="automation/review/run-123",
+
+    def workspace(self, root: Path, repository: RepositoryWorkspace) -> AutomationWorkspace:
+        """Build an automation workspace."""
+
+        return AutomationWorkspace(
+            root=root,
+            home=root / "home",
+            branch="automation/review/hash",
             repositories=[repository],
         )
-        runtime = DispatchRuntime(
+
+    def runtime(self, tmp_path: Path) -> DispatchRuntime:
+        """Build a complete dispatch runtime."""
+
+        return DispatchRuntime(
             github_token="token",
             command_path="/bin",
             github_home=tmp_path / "github-home",
             codex_home=tmp_path / "codex-home",
+            runner_image="code-automations-runner:123",
+            runner_user="1001:1001",
             runner_temp=tmp_path,
             github_run_id="123",
+            github_run_attempt="1",
         )
-        result = AgentResult(summary="Completed.", repositories=[])
-
-        pull_requests = publish_pull_requests(workspace, runtime, result, [])
-
-        assert pull_requests == []

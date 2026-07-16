@@ -2,9 +2,8 @@ import logging
 from collections.abc import Callable
 from typing import Final
 
-from code_automations.execution import run_automation, validate_agent_result
+from code_automations.execution import container_repositories, run_automation, validate_agent_result
 from code_automations.models.dispatching import (
-    DispatchOutcome,
     ExecutionRequest,
     ExecutionResult,
     ScheduledDispatch,
@@ -22,6 +21,7 @@ __all__: Final[tuple[str, ...]] = ("dispatch_due", "dispatch_target", "execute_a
 
 
 type Executor = Callable[[ExecutionRequest, DispatchRuntime], ExecutionResult]
+type SubmissionHandler = Callable[[SubmittedAutomation], None]
 
 
 def execute_automation(request: ExecutionRequest, runtime: DispatchRuntime) -> ExecutionResult:
@@ -29,7 +29,7 @@ def execute_automation(request: ExecutionRequest, runtime: DispatchRuntime) -> E
 
     workspace = create_workspace(request, runtime)
 
-    prompt = render_target(request.loaded, request.target, workspace.repositories)
+    prompt = render_target(request.loaded, request.target, container_repositories(workspace))
     result = run_automation(workspace, runtime, prompt)
 
     changed = changed_repositories(workspace, runtime)
@@ -57,11 +57,11 @@ def dispatch_due(
     scheduled_dispatch: ScheduledDispatch,
     runtime: DispatchRuntime,
     executor: Executor = execute_automation,
-) -> DispatchOutcome:
+    submission_handler: SubmissionHandler | None = None,
+) -> list[SubmittedAutomation]:
     """Execute due automations and advance state only after publication succeeds."""
 
     submissions: list[SubmittedAutomation] = []
-    failures: list[str] = []
 
     for item in scheduled_dispatch.due:
         request = ExecutionRequest(
@@ -70,16 +70,16 @@ def dispatch_due(
             scheduled_for=item.scheduled_for,
         )
 
-        try:
-            result = dispatch_target(request, runtime, executor)
-        except RuntimeError as error:
-            failures.append(f"{item.target.name}: {error}")
-            continue
+        result = dispatch_target(request, runtime, executor)
 
         scheduled_dispatch.state.successful[item.target.name] = item.scheduled_for
 
         save_state(scheduled_dispatch.state_path, scheduled_dispatch.state)
 
-        submissions.append(SubmittedAutomation(name=item.target.name, result=result))
+        submission = SubmittedAutomation(name=item.target.name, result=result)
+        submissions.append(submission)
 
-    return DispatchOutcome(submissions=submissions, failures=failures)
+        if submission_handler is not None:
+            submission_handler(submission)
+
+    return submissions

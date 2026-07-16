@@ -1,6 +1,7 @@
 import argparse
 import logging
 import sys
+from functools import partial
 from pathlib import Path
 from typing import Final
 
@@ -28,9 +29,9 @@ from code_automations.targets import (
 )
 from code_automations.utils import parse_datetime
 
-__all__: Final[tuple[str, ...]] = ("main",)
-
 logger = logging.getLogger(__name__)
+
+__all__: Final[tuple[str, ...]] = ("main",)
 
 
 def write_summary(path: Path | None, submission: SubmittedAutomation) -> None:
@@ -47,6 +48,15 @@ def write_summary(path: Path | None, submission: SubmittedAutomation) -> None:
                 summary.write(f"- [{pull_request.repository}]({pull_request.url})\n")
         else:
             summary.write("- No repository changes\n")
+
+
+def report_submission(path: Path | None, submission: SubmittedAutomation) -> None:
+    """Report one completed automation to logs and the Actions summary."""
+
+    write_summary(path, submission)
+
+    for pull_request in submission.result.pull_requests:
+        logger.info(pull_request.url)
 
 
 def due_payload(items: list[DueAutomation]) -> str:
@@ -138,10 +148,7 @@ def run(arguments: CliArguments) -> int:
         result = dispatch_target(ExecutionRequest(loaded=loaded, target=target), dispatch_runtime)
         submission = SubmittedAutomation(name=target.name, result=result)
 
-        write_summary(summary_path, submission)
-
-        for pull_request in result.pull_requests:
-            logger.info(pull_request.url)
+        report_submission(summary_path, submission)
 
         return 0
 
@@ -156,16 +163,11 @@ def run(arguments: CliArguments) -> int:
         state_path=arguments.state,
     )
 
-    outcome = dispatch_due(scheduled_dispatch, dispatch_runtime)
-
-    for submission in outcome.submissions:
-        write_summary(summary_path, submission)
-
-        for pull_request in submission.result.pull_requests:
-            logger.info(pull_request.url)
-
-    if outcome.failures:
-        raise DispatchError("; ".join(outcome.failures))
+    dispatch_due(
+        scheduled_dispatch,
+        dispatch_runtime,
+        submission_handler=partial(report_submission, summary_path),
+    )
 
     return 0
 

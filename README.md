@@ -40,9 +40,14 @@ branch defaults to `main`. Prompt and skill references such as `foo/bar` load `p
 `skills/foo/bar.md`. Add `schedule.cron` and `schedule.timezone` for scheduled runs; other automations are
 manual-only.
 
-The action creates the same `automation/<name>/...` branch in every changed repository and opens or updates a
-separate pull request targeting that repository's configured base branch. Codex does not receive the GitHub
-token and does not publish changes itself.
+Each run is a single attempt. The action fails before execution if its output branch already exists in any
+configured repository. It creates the same `automation/<name>/...` branch in every changed repository and opens
+a separate pull request targeting each configured base branch. Partial publication remains for manual cleanup
+after a failure.
+
+Codex runs in a hardened Docker container with access only to the automation workspace and its authentication
+directory. The GitHub token remains on the runner, where cloning and publication occur. GitHub-hosted Ubuntu
+runners include Docker; self-hosted runners must provide a compatible Docker daemon.
 
 ## Validate Configuration
 
@@ -112,7 +117,6 @@ checkout. Do not run this authenticated workflow for pull-request events.
 
 ```shell
 poetry install
-npm ci
 poetry run pytest
 poetry run ruff check .
 poetry run ruff format --check .

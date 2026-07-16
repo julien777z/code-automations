@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = (
     "AutomationState",
-    "DispatchOutcome",
     "DueAutomation",
     "ScheduledDispatch",
     "SubmittedAutomation",
@@ -65,15 +64,6 @@ class SubmittedAutomation(BaseModel):
 
     name: str
     result: ExecutionResult
-
-
-class DispatchOutcome(BaseModel):
-    """Collect successful submissions and failures."""
-
-    model_config = ConfigDict(frozen=True)
-
-    submissions: list[SubmittedAutomation]
-    failures: list[str]
 
 
 class ScheduledDispatch(BaseModel):

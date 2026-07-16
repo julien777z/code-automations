@@ -66,6 +66,7 @@ def due_automations(
 
         if schedule is None or not target.automation.enabled:
             continue
+
         occurrence = latest_occurrence(schedule, current)
         successful = state.successful.get(target.name)
         since = max(window_start, successful.astimezone(UTC)) if successful is not None else window_start

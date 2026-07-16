@@ -32,7 +32,6 @@ def render_target(
             branch=repository.branch,
             path=Path(repository.repository),
             starting_commit="unavailable",
-            existing_branch=False,
         )
         for repository in target.repositories
     ]

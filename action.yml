@@ -94,22 +94,19 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version-file: ${{ github.action_path }}/.python-version
-    - name: Set Up Node
-      if: inputs.mode == 'dispatch'
-      uses: actions/setup-node@v4
-      with:
-        node-version-file: ${{ github.action_path }}/.nvmrc
     - name: Install Action Dependencies
       shell: bash
-      env:
-        AUTOMATION_MODE: ${{ inputs.mode }}
       run: |
         python -m pip install --disable-pip-version-check poetry==2.2.0
         poetry --directory "$GITHUB_ACTION_PATH" install --only main
-        if [ "$AUTOMATION_MODE" = "dispatch" ]; then
-          npm ci --prefix "$GITHUB_ACTION_PATH"
-          printf '%s\n' "$GITHUB_ACTION_PATH/node_modules/.bin" >> "$GITHUB_PATH"
-        fi
+    - name: Build Automation Runner
+      if: inputs.mode == 'dispatch'
+      shell: bash
+      run: |
+        image="code-automations-runner:$GITHUB_RUN_ID"
+        docker build --file "$GITHUB_ACTION_PATH/docker/Dockerfile" --tag "$image" "$GITHUB_ACTION_PATH"
+        printf 'AUTOMATION_RUNNER_IMAGE=%s\n' "$image" >> "$GITHUB_ENV"
+        printf 'AUTOMATION_RUNNER_USER=%s:%s\n' "$(id -u)" "$(id -g)" >> "$GITHUB_ENV"
     - name: Validate Automation File
       shell: bash
       env:
@@ -145,6 +142,7 @@ runs:
         install -d -m 700 "$github_home"
         printf '%s' "$CODEX_AUTH_JSON" > "$authentication_home/auth.json"
         chmod 600 "$authentication_home/auth.json"
+        unset CODEX_AUTH_JSON
         printf 'home=%s\n' "$authentication_home" >> "$GITHUB_OUTPUT"
         printf 'github-home=%s\n' "$github_home" >> "$GITHUB_OUTPUT"
     - name: Run Automations

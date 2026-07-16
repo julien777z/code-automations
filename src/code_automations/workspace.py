@@ -2,6 +2,7 @@ import logging
 import re
 import tempfile
 from datetime import UTC
+from hashlib import sha256
 from pathlib import Path
 from typing import Final
 
@@ -58,14 +59,24 @@ def workspace_environment(workspace: AutomationWorkspace, runtime: DispatchRunti
 
 
 def output_branch(request: ExecutionRequest, runtime: DispatchRuntime) -> str:
-    """Build the deterministic branch for one automation execution."""
+    """Build a unique branch shared by every repository in one action attempt."""
 
-    if request.scheduled_for is not None:
-        occurrence = request.scheduled_for.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    occurrence = (
+        request.scheduled_for.astimezone(UTC).isoformat() if request.scheduled_for is not None else "manual"
+    )
 
-        return f"automation/{request.target.name}/{occurrence}"
+    branch_key = ":".join(
+        (
+            runtime.github_run_id,
+            runtime.github_run_attempt,
+            request.target.name,
+            occurrence,
+        )
+    )
 
-    return f"automation/{request.target.name}/run-{runtime.github_run_id}"
+    branch_hash = sha256(branch_key.encode()).hexdigest()[:16]
+
+    return f"automation/{request.target.name}/{branch_hash}"
 
 
 def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> AutomationWorkspace:
@@ -100,7 +111,7 @@ def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> Aut
             )
         )
 
-        existing_branch = prepare_branch(path, repository.branch, branch, environment)
+        prepare_branch(path, repository.branch, branch, environment)
 
         starting_commit = run_command(
             CommandRequest(
@@ -116,7 +127,6 @@ def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> Aut
                 branch=repository.branch,
                 path=path,
                 starting_commit=starting_commit,
-                existing_branch=existing_branch,
             )
         )
 
@@ -128,8 +138,8 @@ def prepare_branch(
     base_branch: str,
     output: str,
     environment: CommandEnvironment,
-) -> bool:
-    """Check out an existing automation branch or create one from its base branch."""
+) -> None:
+    """Create an automation branch when its remote name is available."""
 
     branch_exists = run_command(
         CommandRequest(
@@ -140,27 +150,11 @@ def prepare_branch(
     ).strip()
 
     if branch_exists:
-        run_command(
-            CommandRequest(
-                command=[
-                    "git",
-                    *GIT_CREDENTIAL_OPTIONS,
-                    "fetch",
-                    "origin",
-                    f"{output}:refs/remotes/origin/{output}",
-                ],
-                cwd=path,
-                environment=environment,
-            )
-        )
-
-        start_point = f"origin/{output}"
-    else:
-        start_point = f"origin/{base_branch}"
+        raise DispatchError(f"automation branch already exists: {output}")
 
     run_command(
         CommandRequest(
-            command=["git", "checkout", "-B", output, start_point],
+            command=["git", "checkout", "-b", output, f"origin/{base_branch}"],
             cwd=path,
             environment=environment,
         )
@@ -182,8 +176,6 @@ def prepare_branch(
         )
     )
 
-    return bool(branch_exists)
-
 
 def verify_origin(repository: RepositoryWorkspace, environment: CommandEnvironment) -> None:
     """Require the repository origin to remain its configured GitHub remote."""
@@ -198,5 +190,5 @@ def verify_origin(repository: RepositoryWorkspace, environment: CommandEnvironme
 
     match = GITHUB_ORIGIN_PATTERN.fullmatch(origin)
 
-    if match is None or match.group(1) != repository.repository:
+    if match is None or match.group(1).casefold() != repository.repository.casefold():
         raise DispatchError(f"repository origin changed for {repository.repository}")

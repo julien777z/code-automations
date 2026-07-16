@@ -31,6 +31,19 @@ class TestAction:
             in action["runs"]["steps"][0]["run"]
         )
 
+        rendered = action_path.read_text(encoding="utf-8")
+
+        assert "actions/setup-node" not in rendered
+        assert "npm ci --prefix" not in rendered
+        assert "docker build" in rendered
+        assert "AUTOMATION_RUNNER_IMAGE" in rendered
+        assert "AUTOMATION_RUNNER_USER" in rendered
+
+        dockerfile = (action_path.parent / "docker/Dockerfile").read_text(encoding="utf-8")
+
+        assert "COPY package.json package-lock.json" in dockerfile
+        assert "npm ci --omit=dev" in dockerfile
+
     def test_documented_dispatch_disables_checkout_credentials(self) -> None:
         """Keep the consumer workflow free of checkout credentials during agent execution."""
 

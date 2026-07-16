@@ -3,16 +3,12 @@ import tempfile
 from pathlib import Path
 from typing import Final
 
-from pydantic import TypeAdapter, ValidationError
-
 from code_automations.errors import DispatchError
 from code_automations.models.execution import (
     AgentResult,
     AutomationWorkspace,
-    ExistingPullRequest,
     PublishedPullRequest,
     PullRequestMetadata,
-    PullRequestState,
     RepositoryWorkspace,
 )
 from code_automations.models.processes import CommandEnvironment, CommandRequest
@@ -73,23 +69,23 @@ def publish_pull_requests(
     result: AgentResult,
     changed: list[RepositoryWorkspace],
 ) -> list[PublishedPullRequest]:
-    """Commit, push, and create or update pull requests for changed repositories."""
+    """Commit, push, and create pull requests for changed repositories."""
+
+    if not changed:
+        return []
 
     metadata = {item.repository: item for item in result.repositories}
     environment = workspace_environment(workspace, runtime)
     github = github_environment(runtime)
     publication_root = Path(tempfile.mkdtemp(prefix="publication-", dir=runtime.runner_temp))
-
-    recovery = recovery_repositories(workspace, changed, github, publication_root)
-    repositories = [*changed, *recovery]
-
-    publication_repositories: list[RepositoryWorkspace] = []
+    pull_requests: list[PublishedPullRequest] = []
 
     for repository in changed:
-        commit_repository(repository, metadata[repository.repository], environment)
+        repository_metadata = metadata[repository.repository]
+
+        commit_repository(repository, repository_metadata, environment)
 
         patch_path = create_patch(publication_root, repository, environment)
-
         publication_repository = create_publication_repository(
             publication_root,
             workspace,
@@ -98,8 +94,7 @@ def publish_pull_requests(
         )
 
         apply_patch(publication_repository, patch_path, environment)
-
-        commit_repository(publication_repository, metadata[repository.repository], environment)
+        commit_repository(publication_repository, repository_metadata, environment)
 
         run_command(
             CommandRequest(
@@ -117,59 +112,17 @@ def publish_pull_requests(
             )
         )
 
-        publication_repositories.append(publication_repository)
-
-    for repository in recovery:
-        publication_repositories.append(
-            create_publication_repository(
+        pull_requests.append(
+            publish_pull_request(
                 publication_root,
                 workspace,
-                runtime,
-                repository,
+                publication_repository,
+                repository_metadata,
+                github,
             )
         )
 
-    pull_requests: dict[str, PublishedPullRequest] = {}
-
-    for repository in publication_repositories:
-        repository_metadata = metadata.get(repository.repository) or recovery_metadata(
-            next(item for item in repositories if item.repository == repository.repository), environment
-        )
-
-        pull_request = publish_pull_request(
-            publication_root,
-            workspace,
-            repository,
-            repository_metadata,
-            github,
-        )
-
-        pull_requests[repository.repository] = pull_request
-
-    for repository in workspace.repositories:
-        if repository.repository in pull_requests or not repository.existing_branch:
-            continue
-
-        existing = existing_pull_request(repository, workspace.branch, github, publication_root)
-
-        if existing is None:
-            raise DispatchError(f"automation pull request is missing for {repository.repository}")
-
-        if existing.state is not PullRequestState.OPEN:
-            raise DispatchError(
-                f"automation pull request for {repository.repository} is {existing.state.value.lower()}"
-            )
-
-        pull_requests[repository.repository] = PublishedPullRequest(
-            repository=repository.repository,
-            url=existing.url,
-        )
-
-    return [
-        pull_requests[repository.repository]
-        for repository in workspace.repositories
-        if repository.repository in pull_requests
-    ]
+    return pull_requests
 
 
 def create_patch(
@@ -219,10 +172,8 @@ def create_publication_repository(
             environment=environment,
         )
     )
-    existing_branch = prepare_branch(path, repository.branch, workspace.branch, environment)
 
-    if existing_branch != repository.existing_branch:
-        raise DispatchError(f"automation branch changed before publication for {repository.repository}")
+    prepare_branch(path, repository.branch, workspace.branch, environment)
 
     starting_commit = run_command(
         CommandRequest(
@@ -251,54 +202,6 @@ def apply_patch(
             cwd=repository.path,
             environment=environment,
         )
-    )
-
-
-def recovery_repositories(
-    workspace: AutomationWorkspace,
-    changed: list[RepositoryWorkspace],
-    environment: CommandEnvironment,
-    cwd: Path,
-) -> list[RepositoryWorkspace]:
-    """Find previously pushed branches whose pull request was not created."""
-
-    changed_names = {repository.repository for repository in changed}
-    recovery: list[RepositoryWorkspace] = []
-
-    for repository in workspace.repositories:
-        if not repository.existing_branch:
-            continue
-
-        existing = existing_pull_request(repository, workspace.branch, environment, cwd)
-
-        if existing is not None and existing.state is not PullRequestState.OPEN:
-            raise DispatchError(
-                f"automation pull request for {repository.repository} is {existing.state.value.lower()}"
-            )
-
-        if existing is None and repository.repository not in changed_names:
-            recovery.append(repository)
-
-    return recovery
-
-
-def recovery_metadata(
-    repository: RepositoryWorkspace, environment: CommandEnvironment
-) -> PullRequestMetadata:
-    """Build pull request metadata for a previously published branch."""
-
-    title = run_command(
-        CommandRequest(
-            command=["git", "log", "-1", "--format=%s"],
-            cwd=repository.path,
-            environment=environment,
-        )
-    ).strip()
-
-    return PullRequestMetadata(
-        repository=repository.repository,
-        title=title,
-        body="This pull request completes a previously published Code Automations branch.",
     )
 
 
@@ -333,54 +236,23 @@ def publish_pull_request(
     metadata: PullRequestMetadata,
     environment: CommandEnvironment,
 ) -> PublishedPullRequest:
-    """Create or update one pull request for a pushed automation branch."""
+    """Create one pull request for a pushed automation branch."""
 
     body_path = publication_root / f"{repository.repository.replace('/', '--')}.md"
     body_path.write_text(f"{metadata.body.rstrip()}\n\nGenerated by Code Automations.\n", encoding="utf-8")
 
-    existing = existing_pull_request(repository, workspace.branch, environment, publication_root)
-
-    if existing is None:
-        output = run_command(
-            CommandRequest(
-                command=[
-                    "gh",
-                    "pr",
-                    "create",
-                    "--repo",
-                    repository.repository,
-                    "--base",
-                    repository.branch,
-                    "--head",
-                    workspace.branch,
-                    "--title",
-                    metadata.title,
-                    "--body-file",
-                    str(body_path),
-                ],
-                cwd=repository.path,
-                environment=environment,
-            )
-        ).strip()
-
-        return PublishedPullRequest(repository=repository.repository, url=output)
-
-    if existing.state is not PullRequestState.OPEN:
-        raise DispatchError(
-            f"automation pull request for {repository.repository} is {existing.state.value.lower()}"
-        )
-
-    run_command(
+    output = run_command(
         CommandRequest(
             command=[
                 "gh",
                 "pr",
-                "edit",
-                str(existing.url),
+                "create",
                 "--repo",
                 repository.repository,
                 "--base",
                 repository.branch,
+                "--head",
+                workspace.branch,
                 "--title",
                 metadata.title,
                 "--body-file",
@@ -389,56 +261,6 @@ def publish_pull_request(
             cwd=repository.path,
             environment=environment,
         )
-    )
+    ).strip()
 
-    return PublishedPullRequest(repository=repository.repository, url=existing.url)
-
-
-def existing_pull_request(
-    repository: RepositoryWorkspace,
-    output_branch: str,
-    environment: CommandEnvironment,
-    cwd: Path,
-) -> ExistingPullRequest | None:
-    """Find the sole pull request associated with one automation branch."""
-
-    output = run_command(
-        CommandRequest(
-            command=[
-                "gh",
-                "pr",
-                "list",
-                "--repo",
-                repository.repository,
-                "--head",
-                output_branch,
-                "--state",
-                "all",
-                "--limit",
-                "1000",
-                "--json",
-                "url,state,headRepository,headRepositoryOwner",
-            ],
-            cwd=cwd,
-            environment=environment,
-        )
-    )
-
-    try:
-        pull_requests = TypeAdapter(list[ExistingPullRequest]).validate_json(output)
-    except ValidationError as error:
-        raise DispatchError(f"unable to read existing pull requests: {error}") from error
-
-    pull_requests = [
-        pull_request
-        for pull_request in pull_requests
-        if pull_request.head_repository is not None
-        and pull_request.head_repository_owner is not None
-        and f"{pull_request.head_repository_owner.login}/{pull_request.head_repository.name}"
-        == repository.repository
-    ]
-
-    if len(pull_requests) > 1:
-        raise DispatchError(f"multiple pull requests exist for {repository.repository} and {output_branch}")
-
-    return pull_requests[0] if pull_requests else None
+    return PublishedPullRequest(repository=repository.repository, url=output)

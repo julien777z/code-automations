@@ -1,5 +1,4 @@
 import logging
-from enum import StrEnum
 from pathlib import Path
 from typing import Final
 
@@ -10,11 +9,7 @@ logger = logging.getLogger(__name__)
 __all__: Final[tuple[str, ...]] = (
     "AgentResult",
     "AutomationWorkspace",
-    "ExistingPullRequest",
-    "PullRequestOwner",
-    "PullRequestRepository",
     "PullRequestMetadata",
-    "PullRequestState",
     "PublishedPullRequest",
     "RepositoryWorkspace",
 )
@@ -29,7 +24,6 @@ class RepositoryWorkspace(BaseModel):
     branch: str
     path: Path
     starting_commit: str
-    existing_branch: bool
 
 
 class AutomationWorkspace(BaseModel):
@@ -83,44 +77,9 @@ class AgentResult(BaseModel):
 
 
 class PublishedPullRequest(BaseModel):
-    """Capture one pull request created or updated by the workflow."""
+    """Capture one pull request created by the workflow."""
 
     model_config = ConfigDict(frozen=True)
 
     repository: str
     url: HttpUrl
-
-
-class PullRequestState(StrEnum):
-    """Represent GitHub pull request states."""
-
-    OPEN = "OPEN"
-    CLOSED = "CLOSED"
-    MERGED = "MERGED"
-
-
-class PullRequestRepository(BaseModel):
-    """Identify a repository attached to a pull request."""
-
-    model_config = ConfigDict(extra="ignore", strict=True)
-
-    name: str
-
-
-class PullRequestOwner(BaseModel):
-    """Identify the owner attached to a pull request."""
-
-    model_config = ConfigDict(extra="ignore", strict=True)
-
-    login: str
-
-
-class ExistingPullRequest(BaseModel):
-    """Represent the existing pull request for an automation branch."""
-
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    url: HttpUrl
-    state: PullRequestState
-    head_repository: PullRequestRepository | None = Field(validation_alias="headRepository")
-    head_repository_owner: PullRequestOwner | None = Field(validation_alias="headRepositoryOwner")

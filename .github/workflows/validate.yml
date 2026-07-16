@@ -15,12 +15,14 @@ jobs:
       - run: poetry run pytest
       - run: poetry run ruff check .
       - run: poetry run ruff format --check .
+      - run: docker build --file docker/Dockerfile --tag code-automations-runner:test .
       - uses: ./
         with:
           mode: validate
       - run: |
           (
             cd .github/actionlint
+            go mod download
             go install github.com/rhysd/actionlint/cmd/actionlint
           )
           "$(go env GOPATH)/bin/actionlint"

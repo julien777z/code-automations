@@ -48,6 +48,11 @@ class TestScheduling:
 
         assert due_automations(automation_targets, state, now) == []
 
+    def test_state_contains_only_successful_occurrences(self) -> None:
+        """Exclude unfinished scheduling state."""
+
+        assert AutomationState().model_dump() == {"version": 1, "successful": {}}
+
     def test_occurrences_older_than_24_hours_are_not_due(
         self, scheduled_configuration: LoadedConfiguration
     ) -> None:

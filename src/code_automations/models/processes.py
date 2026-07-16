@@ -14,7 +14,6 @@ class CommandEnvironment(TypedDict):
 
     HOME: str
     PATH: str
-    CODEX_HOME: NotRequired[str]
     GH_TOKEN: NotRequired[str]
     GIT_CONFIG_GLOBAL: NotRequired[str]
     GIT_CONFIG_NOSYSTEM: NotRequired[str]

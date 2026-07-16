@@ -1,18 +1,41 @@
 import json
 import logging
+from pathlib import Path
 from typing import Final
 
 from pydantic import ValidationError
 
 from code_automations.errors import DispatchError
-from code_automations.models.execution import AgentResult, AutomationWorkspace
+from code_automations.models.execution import AgentResult, AutomationWorkspace, RepositoryWorkspace
 from code_automations.models.processes import CommandEnvironment, CommandRequest
 from code_automations.models.runtime import DispatchRuntime
 from code_automations.processes import run_command
 
 logger = logging.getLogger(__name__)
 
-__all__: Final[tuple[str, ...]] = ("run_automation", "validate_agent_result")
+__all__: Final[tuple[str, ...]] = (
+    "container_repositories",
+    "run_automation",
+    "validate_agent_result",
+)
+
+CONTAINER_AUTH_HOME: Final[Path] = Path("/codex-home")
+CONTAINER_WORKSPACE: Final[Path] = Path("/workspace")
+
+
+def container_path(workspace: AutomationWorkspace, path: Path) -> Path:
+    """Translate an automation workspace path to its container path."""
+
+    return CONTAINER_WORKSPACE / path.relative_to(workspace.root)
+
+
+def container_repositories(workspace: AutomationWorkspace) -> list[RepositoryWorkspace]:
+    """Map repository workspaces to their paths inside the agent container."""
+
+    return [
+        repository.model_copy(update={"path": container_path(workspace, repository.path)})
+        for repository in workspace.repositories
+    ]
 
 
 def run_automation(workspace: AutomationWorkspace, runtime: DispatchRuntime, prompt: str) -> AgentResult:
@@ -23,31 +46,52 @@ def run_automation(workspace: AutomationWorkspace, runtime: DispatchRuntime, pro
     schema_path.write_text(json.dumps(AgentResult.model_json_schema()), encoding="utf-8")
 
     command = [
-        "codex",
+        "docker",
+        "run",
+        "--rm",
+        "--init",
+        "--interactive",
+        "--user",
+        runtime.runner_user,
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--read-only",
+        "--pids-limit=256",
+        "--network=bridge",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,noexec,size=512m",
+        "--mount",
+        f"type=bind,source={workspace.root},target={CONTAINER_WORKSPACE}",
+        "--mount",
+        f"type=bind,source={runtime.codex_home},target={CONTAINER_AUTH_HOME}",
+        "--env",
+        f"CODEX_HOME={CONTAINER_AUTH_HOME}",
+        "--env",
+        f"HOME={container_path(workspace, workspace.home)}",
+        runtime.runner_image,
         "exec",
         "--ephemeral",
         "--ignore-user-config",
         "--sandbox",
         "workspace-write",
         "-C",
-        str(workspace.repositories[0].path),
+        str(container_path(workspace, workspace.repositories[0].path)),
     ]
 
     for repository in workspace.repositories[1:]:
-        command.extend(["--add-dir", str(repository.path)])
+        command.extend(["--add-dir", str(container_path(workspace, repository.path))])
 
     command.extend(
         [
             "--output-schema",
-            str(schema_path),
+            str(container_path(workspace, schema_path)),
             "--output-last-message",
-            str(output_path),
+            str(container_path(workspace, output_path)),
             "-",
         ]
     )
 
     environment = CommandEnvironment(
-        CODEX_HOME=str(runtime.codex_home),
         HOME=str(workspace.home),
         PATH=runtime.command_path,
     )
