@@ -78,6 +78,7 @@ def publish_pull_requests(
     environment = workspace_environment(workspace, runtime)
     github = github_environment(runtime)
     publication_root = Path(tempfile.mkdtemp(prefix="publication-", dir=runtime.runner_temp))
+    publication_repositories: list[RepositoryWorkspace] = []
     pull_requests: list[PublishedPullRequest] = []
 
     for repository in changed:
@@ -94,6 +95,7 @@ def publish_pull_requests(
         )
 
         apply_patch(publication_repository, patch_path, environment)
+
         commit_repository(publication_repository, repository_metadata, environment)
 
         run_command(
@@ -112,12 +114,15 @@ def publish_pull_requests(
             )
         )
 
+        publication_repositories.append(publication_repository)
+
+    for repository in publication_repositories:
         pull_requests.append(
             publish_pull_request(
                 publication_root,
                 workspace,
-                publication_repository,
-                repository_metadata,
+                repository,
+                metadata[repository.repository],
                 github,
             )
         )

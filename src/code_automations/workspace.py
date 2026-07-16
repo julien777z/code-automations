@@ -83,6 +83,7 @@ def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> Aut
     """Clone and prepare every repository for one automation execution."""
 
     root = Path(tempfile.mkdtemp(prefix=f"{request.target.name}-", dir=runtime.runner_temp))
+
     home = root / "home"
     home.mkdir(mode=0o700)
 

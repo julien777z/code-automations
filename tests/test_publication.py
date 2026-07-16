@@ -205,6 +205,128 @@ class TestPublication:
 
         assert publish_pull_requests(workspace, self.runtime(tmp_path), result, []) == []
 
+    def test_all_branches_are_pushed_before_any_pull_request(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """Finish multi-repository branch publication before opening pull requests."""
+
+        repositories = [
+            self.repository(tmp_path / "first").model_copy(update={"repository": "owner/first"}),
+            self.repository(tmp_path / "second").model_copy(update={"repository": "owner/second"}),
+        ]
+        workspace = AutomationWorkspace(
+            root=tmp_path,
+            home=tmp_path / "home",
+            branch="automation/review/hash",
+            repositories=repositories,
+        )
+
+        result = AgentResult(
+            summary="Completed.",
+            repositories=[
+                PullRequestMetadata(repository=repository.repository, title="Update", body="Summary")
+                for repository in repositories
+            ],
+        )
+
+        runtime = self.runtime(tmp_path)
+        events: list[str] = []
+
+        def commit(
+            repository: RepositoryWorkspace,
+            metadata: PullRequestMetadata,
+            environment: CommandEnvironment,
+        ) -> None:
+            """Accept uncredentialed commits during publication setup."""
+
+            assert metadata.repository == repository.repository
+            assert "GH_TOKEN" not in environment
+
+        def create_patch(
+            publication_root: Path,
+            repository: RepositoryWorkspace,
+            environment: CommandEnvironment,
+        ) -> Path:
+            """Return the agent patch path for each repository."""
+
+            assert publication_root.parent == tmp_path
+            assert repository in repositories
+            assert "GH_TOKEN" not in environment
+
+            return tmp_path / "changes.patch"
+
+        def create_checkout(
+            publication_root: Path,
+            received_workspace: AutomationWorkspace,
+            received_runtime: DispatchRuntime,
+            repository: RepositoryWorkspace,
+        ) -> RepositoryWorkspace:
+            """Return one clean publication checkout."""
+
+            assert publication_root.parent == tmp_path
+            assert received_workspace is workspace
+            assert received_runtime is runtime
+
+            return repository.model_copy(
+                update={"path": tmp_path / "publication" / repository.repository.replace("/", "--")}
+            )
+
+        def apply(
+            repository: RepositoryWorkspace,
+            patch_path: Path,
+            environment: CommandEnvironment,
+        ) -> None:
+            """Accept patch application in the clean repository checkout."""
+
+            assert repository.path.parent == tmp_path / "publication"
+            assert patch_path == tmp_path / "changes.patch"
+            assert "GH_TOKEN" not in environment
+
+        def run(request: CommandRequest) -> str:
+            """Record each branch push."""
+
+            events.append(f"push:{request.cwd.name}")
+
+            return ""
+
+        def publish(
+            publication_root: Path,
+            received_workspace: AutomationWorkspace,
+            repository: RepositoryWorkspace,
+            metadata: PullRequestMetadata,
+            environment: CommandEnvironment,
+        ) -> PublishedPullRequest:
+            """Require both pushes before pull request publication."""
+
+            assert len([event for event in events if event.startswith("push:")]) == 2
+            assert publication_root.parent == tmp_path
+            assert received_workspace is workspace
+            assert metadata.repository == repository.repository
+            assert environment["GH_TOKEN"] == "token"
+            events.append(f"pull-request:{repository.repository}")
+
+            return PublishedPullRequest(
+                repository=repository.repository,
+                url=f"https://github.com/{repository.repository}/pull/1",
+            )
+
+        monkeypatch.setattr("code_automations.publication.commit_repository", commit)
+        monkeypatch.setattr("code_automations.publication.create_patch", create_patch)
+        monkeypatch.setattr("code_automations.publication.create_publication_repository", create_checkout)
+        monkeypatch.setattr("code_automations.publication.apply_patch", apply)
+        monkeypatch.setattr("code_automations.publication.run_command", run)
+        monkeypatch.setattr("code_automations.publication.publish_pull_request", publish)
+
+        pull_requests = publish_pull_requests(workspace, runtime, result, repositories)
+
+        assert events[:2] == ["push:owner--first", "push:owner--second"]
+        assert [pull_request.repository for pull_request in pull_requests] == [
+            "owner/first",
+            "owner/second",
+        ]
+
     def repository(self, path: Path, branch: str = "main") -> RepositoryWorkspace:
         """Build a repository workspace."""
 
