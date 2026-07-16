@@ -73,7 +73,18 @@ runs:
             ;;
         esac
 
-        test -f "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH" || {
+        workspace_root="$(realpath "$GITHUB_WORKSPACE")"
+        automation_file_path="$(realpath -m -- "$workspace_root/$AUTOMATIONS_FILE_PATH")"
+
+        case "$automation_file_path" in
+          "$workspace_root"/*) ;;
+          *)
+            echo "automation file must resolve inside the checked-out repository" >&2
+            exit 1
+            ;;
+        esac
+
+        test -f "$automation_file_path" || {
           echo "automation file does not exist: $AUTOMATIONS_FILE_PATH" >&2
           exit 1
         }
