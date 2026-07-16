@@ -1,8 +1,5 @@
 from pathlib import Path
 
-import pytest
-
-from code_automations.errors import DispatchError
 from code_automations.models.execution import (
     AgentResult,
     AutomationWorkspace,
@@ -13,36 +10,10 @@ from code_automations.models.execution import (
 from code_automations.models.processes import CommandEnvironment, CommandRequest
 from code_automations.models.runtime import DispatchRuntime
 from code_automations.publication import publish_pull_request, publish_pull_requests
-from code_automations.workspace import prepare_branch
 
 
 class TestPublication:
     """Test create-only branch and pull request publication."""
-
-    def test_existing_output_branch_fails_before_checkout(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        """Treat a generated branch collision as a terminal conflict."""
-
-        requests: list[CommandRequest] = []
-        environment = CommandEnvironment(HOME=str(tmp_path), PATH="/bin")
-
-        def run(request: CommandRequest) -> str:
-            """Report an existing remote branch."""
-
-            requests.append(request)
-
-            return "commit\trefs/heads/automation/review/hash\n"
-
-        monkeypatch.setattr("code_automations.workspace.run_command", run)
-
-        with pytest.raises(DispatchError, match="already exists"):
-            prepare_branch(tmp_path, "main", "automation/review/hash", environment)
-
-        assert len(requests) == 1
-        assert "ls-remote" in requests[0].command
 
     def test_pull_request_is_created_without_lookup_or_edit(
         self,

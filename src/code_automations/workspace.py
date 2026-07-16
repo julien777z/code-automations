@@ -140,18 +140,7 @@ def prepare_branch(
     output: str,
     environment: CommandEnvironment,
 ) -> None:
-    """Create an automation branch when its remote name is available."""
-
-    branch_exists = run_command(
-        CommandRequest(
-            command=["git", *GIT_CREDENTIAL_OPTIONS, "ls-remote", "--heads", "origin", output],
-            cwd=path,
-            environment=environment,
-        )
-    ).strip()
-
-    if branch_exists:
-        raise DispatchError(f"automation branch already exists: {output}")
+    """Create an automation branch from its configured base branch."""
 
     run_command(
         CommandRequest(
