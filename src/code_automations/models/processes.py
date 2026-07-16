@@ -1,7 +1,10 @@
+import logging
 from pathlib import Path
 from typing import Final, NotRequired, TypedDict
 
 from pydantic import BaseModel, ConfigDict
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("CommandEnvironment", "CommandRequest")
 

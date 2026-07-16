@@ -2,18 +2,23 @@ from pathlib import Path
 
 import pytest
 
+from code_automations.errors import DispatchError
 from code_automations.models.execution import (
     AgentResult,
     AutomationWorkspace,
     ExistingPullRequest,
     PublishedPullRequest,
     PullRequestMetadata,
+    PullRequestOwner,
+    PullRequestRepository,
+    PullRequestState,
     RepositoryWorkspace,
 )
 from code_automations.models.processes import CommandEnvironment, CommandRequest
 from code_automations.models.runtime import DispatchRuntime
 from code_automations.publication import (
     existing_pull_request,
+    publish_pull_request,
     publish_pull_requests,
     recovery_metadata,
     recovery_repositories,
@@ -137,6 +142,119 @@ class TestPublication:
 
         assert metadata.title == "Update review rules"
         assert metadata.repository == "owner/repository"
+
+    def test_closed_existing_pull_request_blocks_changed_branch_publication(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """Reject a closed deterministic pull request before a changed retry pushes."""
+
+        repository = RepositoryWorkspace(
+            repository="owner/repository",
+            branch="main",
+            path=tmp_path,
+            starting_commit="commit",
+            existing_branch=True,
+        )
+        workspace = AutomationWorkspace(
+            root=tmp_path,
+            home=tmp_path / "home",
+            branch="automation/review/run-123",
+            repositories=[repository],
+        )
+        environment = CommandEnvironment(HOME=str(tmp_path), PATH="/bin")
+        pull_request = ExistingPullRequest(
+            url="https://github.com/owner/repository/pull/1",
+            state=PullRequestState.CLOSED,
+            headRepository=PullRequestRepository(name="repository"),
+            headRepositoryOwner=PullRequestOwner(login="owner"),
+        )
+
+        def find_pull_request(
+            received_repository: RepositoryWorkspace,
+            output_branch: str,
+            received_environment: CommandEnvironment,
+            cwd: Path,
+        ) -> ExistingPullRequest | None:
+            """Return the closed deterministic pull request."""
+
+            assert received_repository is repository
+            assert output_branch == workspace.branch
+            assert received_environment is environment
+            assert cwd == workspace.root
+
+            return pull_request
+
+        monkeypatch.setattr("code_automations.publication.existing_pull_request", find_pull_request)
+
+        with pytest.raises(DispatchError, match="closed"):
+            recovery_repositories(workspace, [repository], environment)
+
+    def test_open_pull_request_is_retargeted_to_the_configured_base_branch(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """Set the configured target branch while updating an existing pull request."""
+
+        repository = RepositoryWorkspace(
+            repository="owner/repository",
+            branch="develop",
+            path=tmp_path,
+            starting_commit="commit",
+            existing_branch=True,
+        )
+        workspace = AutomationWorkspace(
+            root=tmp_path,
+            home=tmp_path / "home",
+            branch="automation/review/run-123",
+            repositories=[repository],
+        )
+        metadata = PullRequestMetadata(
+            repository=repository.repository,
+            title="Update repository",
+            body="Summary",
+        )
+        environment = CommandEnvironment(GH_TOKEN="token", HOME=str(tmp_path), PATH="/bin")
+        existing = ExistingPullRequest(
+            url="https://github.com/owner/repository/pull/1",
+            state=PullRequestState.OPEN,
+            headRepository=PullRequestRepository(name="repository"),
+            headRepositoryOwner=PullRequestOwner(login="owner"),
+        )
+        commands: list[CommandRequest] = []
+
+        def find_pull_request(
+            received_repository: RepositoryWorkspace,
+            output_branch: str,
+            received_environment: CommandEnvironment,
+            cwd: Path,
+        ) -> ExistingPullRequest | None:
+            """Return the existing open pull request."""
+
+            assert received_repository is repository
+            assert output_branch == workspace.branch
+            assert received_environment is environment
+            assert cwd == workspace.root
+
+            return existing
+
+        def run(request: CommandRequest) -> str:
+            """Capture the pull request update command."""
+
+            commands.append(request)
+
+            return ""
+
+        monkeypatch.setattr("code_automations.publication.existing_pull_request", find_pull_request)
+        monkeypatch.setattr("code_automations.publication.run_command", run)
+
+        pull_request = publish_pull_request(workspace, repository, metadata, environment)
+
+        assert str(pull_request.url) == str(existing.url)
+        assert "--base" in commands[0].command
+        assert commands[0].command[commands[0].command.index("--base") + 1] == "develop"
 
     def test_pull_request_lookup_ignores_matching_branches_from_forks(
         self,

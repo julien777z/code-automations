@@ -1,9 +1,12 @@
+import logging
 from pathlib import Path
 from typing import Final
 
 from code_automations.configuration import read_fragment
 from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
 from code_automations.models.execution import RepositoryWorkspace
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("render_target",)
 

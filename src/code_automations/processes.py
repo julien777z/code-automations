@@ -1,8 +1,11 @@
+import logging
 import subprocess
 from typing import Final
 
 from code_automations.errors import DispatchError
 from code_automations.models.processes import CommandRequest
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("run_command",)
 

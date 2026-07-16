@@ -1,8 +1,11 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("CliArguments", "DueRecord", "DueRepository")
 

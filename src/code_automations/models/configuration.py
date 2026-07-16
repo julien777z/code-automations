@@ -1,3 +1,4 @@
+import logging
 import re
 from pathlib import Path, PurePosixPath
 from typing import Final, Literal, Self
@@ -5,6 +6,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = (
     "AUTOMATION_PATTERN",

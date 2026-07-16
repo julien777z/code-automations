@@ -20,7 +20,12 @@ from code_automations.models.runtime import ActionsRuntime, resolve_dispatch_run
 from code_automations.rendering import render_target
 from code_automations.scheduling import due_automations
 from code_automations.state import load_state
-from code_automations.targets import find_target, resolve_self_repository, resolve_targets
+from code_automations.targets import (
+    find_target,
+    has_self_repository,
+    resolve_self_repository,
+    resolve_targets,
+)
 from code_automations.utils import parse_datetime
 
 __all__: Final[tuple[str, ...]] = ("main",)
@@ -103,7 +108,11 @@ def run(arguments: CliArguments) -> int:
         return 0
 
     loaded = load_configuration(arguments.config)
-    self_repository = resolve_self_repository(loaded.root, runtime.github_repository)
+    self_repository = (
+        resolve_self_repository(loaded.root, runtime.github_repository)
+        if has_self_repository(loaded)
+        else None
+    )
 
     if arguments.command == "render":
         if arguments.automation is None:

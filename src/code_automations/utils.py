@@ -1,7 +1,10 @@
+import logging
 from datetime import UTC, datetime
 from typing import Final
 
 from code_automations.errors import ConfigurationError
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("parse_datetime",)
 

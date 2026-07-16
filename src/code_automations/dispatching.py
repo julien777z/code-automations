@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from typing import Final
 
@@ -14,6 +15,8 @@ from code_automations.publication import changed_repositories, publish_pull_requ
 from code_automations.rendering import render_target
 from code_automations.state import save_state
 from code_automations.workspace import create_workspace
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("dispatch_due", "dispatch_target", "execute_automation")
 

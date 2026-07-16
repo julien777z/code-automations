@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Final, Literal
@@ -6,6 +7,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
 from code_automations.models.execution import PublishedPullRequest
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = (
     "AutomationState",

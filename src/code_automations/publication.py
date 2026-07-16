@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Final
 
@@ -23,6 +24,8 @@ from code_automations.workspace import (
     verify_origin,
     workspace_environment,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("changed_repositories", "publish_pull_requests")
 
@@ -82,10 +85,15 @@ def publish_pull_requests(
 
     for repository in changed:
         commit_repository(repository, metadata[repository.repository], environment)
+
         patch_path = create_patch(workspace, repository, environment)
+
         publication_repository = create_publication_repository(workspace, runtime, repository)
+
         apply_patch(publication_repository, patch_path, environment)
+
         commit_repository(publication_repository, metadata[repository.repository], environment)
+
         run_command(
             CommandRequest(
                 command=[
@@ -101,28 +109,48 @@ def publish_pull_requests(
                 environment=github,
             )
         )
+
         publication_repositories.append(publication_repository)
 
     for repository in recovery:
         publication_repositories.append(create_publication_repository(workspace, runtime, repository))
 
-    pull_requests: list[PublishedPullRequest] = []
+    pull_requests: dict[str, PublishedPullRequest] = {}
 
     for repository in publication_repositories:
         repository_metadata = metadata.get(repository.repository) or recovery_metadata(
             next(item for item in repositories if item.repository == repository.repository), environment
         )
 
-        pull_requests.append(
-            publish_pull_request(
-                workspace,
-                repository,
-                repository_metadata,
-                github,
-            )
+        pull_request = publish_pull_request(
+            workspace,
+            repository,
+            repository_metadata,
+            github,
         )
 
-    return pull_requests
+        pull_requests[repository.repository] = pull_request
+
+    for repository in workspace.repositories:
+        if repository.repository in pull_requests or not repository.existing_branch:
+            continue
+
+        existing = existing_pull_request(repository, workspace.branch, github, workspace.root)
+
+        if existing is None:
+            raise DispatchError(f"automation pull request is missing for {repository.repository}")
+
+        if existing.state is not PullRequestState.OPEN:
+            raise DispatchError(
+                f"automation pull request for {repository.repository} is {existing.state.value.lower()}"
+            )
+
+        pull_requests[repository.repository] = PublishedPullRequest(
+            repository=repository.repository,
+            url=existing.url,
+        )
+
+    return [pull_requests[repository.repository] for repository in workspace.repositories]
 
 
 def create_patch(
@@ -217,17 +245,18 @@ def recovery_repositories(
     recovery: list[RepositoryWorkspace] = []
 
     for repository in workspace.repositories:
-        if not repository.existing_branch or repository.repository in changed_names:
+        if not repository.existing_branch:
             continue
 
         existing = existing_pull_request(repository, workspace.branch, environment, workspace.root)
 
-        if existing is None:
-            recovery.append(repository)
-        elif existing.state is not PullRequestState.OPEN:
+        if existing is not None and existing.state is not PullRequestState.OPEN:
             raise DispatchError(
                 f"automation pull request for {repository.repository} is {existing.state.value.lower()}"
             )
+
+        if existing is None and repository.repository not in changed_names:
+            recovery.append(repository)
 
     return recovery
 
@@ -328,6 +357,8 @@ def publish_pull_request(
                 str(existing.url),
                 "--repo",
                 repository.repository,
+                "--base",
+                repository.branch,
                 "--title",
                 metadata.title,
                 "--body-file",

@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Final
 
 from pydantic import ValidationError
@@ -8,6 +9,8 @@ from code_automations.models.execution import AgentResult, AutomationWorkspace
 from code_automations.models.processes import CommandEnvironment, CommandRequest
 from code_automations.models.runtime import DispatchRuntime
 from code_automations.processes import run_command
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("run_automation", "validate_agent_result")
 

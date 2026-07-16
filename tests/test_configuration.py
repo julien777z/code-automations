@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from code_automations.cli import run
 from code_automations.configuration import (
     load_configuration,
     read_fragment,
@@ -9,6 +10,7 @@ from code_automations.configuration import (
     validate_configuration,
 )
 from code_automations.errors import ConfigurationError
+from code_automations.models.cli import CliArguments
 from code_automations.rendering import render_target
 from code_automations.targets import find_target
 
@@ -48,6 +50,30 @@ class TestConfiguration:
         target = find_target(loaded, "owner/repository", "hello-world")
 
         assert [repository.branch for repository in target.repositories] == ["main", "main"]
+
+    def test_explicit_repositories_do_not_require_a_local_origin(
+        self,
+        automation_config_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Render explicit repositories without resolving the reserved self value."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        automation_config_path.write_text(
+            configuration.replace("      self:\n        branch: main\n", "      owner/primary: {}\n"),
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(automation_config_path.parent)
+
+        result = run(
+            CliArguments(
+                config=automation_config_path,
+                command="render",
+                automation="hello-world",
+            )
+        )
+
+        assert result == 0
 
     def test_duplicate_resolved_repositories_are_rejected(self, automation_config_path: Path) -> None:
         """Reject a self repository repeated as an explicit repository."""

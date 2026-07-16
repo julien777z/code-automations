@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Final
 
@@ -5,6 +6,8 @@ from pydantic import ValidationError
 
 from code_automations.errors import ConfigurationError
 from code_automations.models.dispatching import AutomationState
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("load_state", "save_state")
 

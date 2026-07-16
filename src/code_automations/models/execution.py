@@ -1,8 +1,11 @@
+import logging
 from enum import StrEnum
 from pathlib import Path
 from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = (
     "AgentResult",

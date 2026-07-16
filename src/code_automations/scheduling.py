@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Final
 from zoneinfo import ZoneInfo
@@ -6,6 +7,8 @@ from croniter import croniter
 
 from code_automations.models.configuration import AutomationTarget, ScheduleConfig
 from code_automations.models.dispatching import AutomationState, DueAutomation
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = ("due_automations", "latest_occurrence")
 

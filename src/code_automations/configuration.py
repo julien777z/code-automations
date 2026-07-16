@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 from typing import Final, Literal
 
@@ -11,7 +12,9 @@ from code_automations.models.configuration import (
     AutomationsConfig,
     LoadedConfiguration,
 )
-from code_automations.targets import resolve_self_repository, resolve_targets
+from code_automations.targets import has_self_repository, resolve_self_repository, resolve_targets
+
+logger = logging.getLogger(__name__)
 
 type FragmentDirectory = Literal["prompts", "skills"]
 
@@ -109,7 +112,5 @@ def validate_configuration(config_path: Path, github_repository: str | None = No
     """Validate one automation configuration and its referenced resources."""
 
     loaded = load_configuration(config_path)
-    has_self_repository = any("self" in project.repositories for project in loaded.config.projects.values())
-
-    if has_self_repository:
+    if has_self_repository(loaded):
         resolve_targets(loaded, resolve_self_repository(loaded.root, github_repository))

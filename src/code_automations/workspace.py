@@ -1,3 +1,4 @@
+import logging
 import re
 import tempfile
 from datetime import UTC
@@ -10,6 +11,8 @@ from code_automations.models.execution import AutomationWorkspace, RepositoryWor
 from code_automations.models.processes import CommandEnvironment, CommandRequest
 from code_automations.models.runtime import DispatchRuntime
 from code_automations.processes import run_command
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = (
     "GIT_CREDENTIAL_OPTIONS",
@@ -79,6 +82,7 @@ def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> Aut
 
     for index, repository in enumerate(request.target.repositories, start=1):
         path = root / f"{index}-{repository.repository.replace('/', '--')}"
+
         run_command(
             CommandRequest(
                 command=[
@@ -98,6 +102,7 @@ def create_workspace(request: ExecutionRequest, runtime: DispatchRuntime) -> Aut
         )
 
         existing_branch = prepare_branch(path, repository.branch, branch, environment)
+
         starting_commit = run_command(
             CommandRequest(
                 command=["git", "rev-parse", "HEAD"],

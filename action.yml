@@ -97,10 +97,16 @@ runs:
     - name: Load Scheduled Automation State
       if: inputs.mode == 'dispatch' && inputs.run-automation == ''
       shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
       run: |
-        state_ref="$(git ls-remote --heads origin automation-state)"
+        credentials=(
+          -c credential.helper=
+          -c 'credential.https://github.com.helper=!gh auth git-credential'
+        )
+        state_ref="$(git "${credentials[@]}" ls-remote --heads "https://github.com/$GITHUB_REPOSITORY.git" automation-state)"
         if [ -n "$state_ref" ]; then
-          git fetch origin automation-state:refs/remotes/origin/automation-state
+          git "${credentials[@]}" fetch "https://github.com/$GITHUB_REPOSITORY.git" automation-state:refs/remotes/origin/automation-state
           git show origin/automation-state:state.json > "$RUNNER_TEMP/state.json"
         else
           printf '{"version":1,"successful":{}}\n' > "$RUNNER_TEMP/state.json"
@@ -140,7 +146,13 @@ runs:
     - name: Persist Scheduled Automation State
       if: always() && inputs.mode == 'dispatch' && inputs.run-automation == '' && steps.dispatch.outcome != 'skipped'
       shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
       run: |
+        credentials=(
+          -c credential.helper=
+          -c 'credential.https://github.com.helper=!gh auth git-credential'
+        )
         state_directory="$RUNNER_TEMP/automation-state"
         if git show-ref --verify --quiet refs/remotes/origin/automation-state; then
           git worktree add -B automation-state "$state_directory" origin/automation-state
@@ -157,7 +169,7 @@ runs:
         git -C "$state_directory" config user.name github-actions[bot]
         git -C "$state_directory" config user.email 41898282+github-actions[bot]@users.noreply.github.com
         git -C "$state_directory" commit -m "Update automation state"
-        git -C "$state_directory" push origin HEAD:automation-state
+        git -C "$state_directory" "${credentials[@]}" push "https://github.com/$GITHUB_REPOSITORY.git" HEAD:automation-state
     - name: Remove Automation Authentication
       if: always() && inputs.mode == 'dispatch'
       shell: bash
