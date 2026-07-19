@@ -1,30 +1,21 @@
 # Code Automations
 
-Run repository-owned, multi-repository automations from one reusable GitHub Action.
+Validate and run repository-owned automations across one or more GitHub repositories.
 
 ## Features
 
-- Consumer-owned automation configuration, prompts, and skills
-- Configuration validation, manual runs, and scheduled runs
+- Repository-owned configuration, prompts, and skills
+- Configuration validation before execution
+- Manual and scheduled automation runs
 - Multi-repository changes and pull request creation
-- Isolated automation execution in Docker
-- Shared runtime and dependency management
+- Docker-isolated execution
+- Managed runtime dependencies
 
-## Setup
+## Examples
 
-Keep the automation configuration and its prompt and skill directories in the consumer repository. The included
-example uses `example/automations.yaml`, `example/prompts/`, and `example/skills/`. Configure the GitHub token
-secret for every consumer repository:
+### Configure Automations
 
-```shell
-gh secret set AUTOMATION_GITHUB_TOKEN
-```
-
-`AUTOMATION_GITHUB_TOKEN` must be a GitHub App installation token or fine-grained personal access token
-with access to the consumer repository and every configured target repository. It needs contents and pull
-request write permission.
-
-## Example
+Define projects, repositories, prompts, skills, and optional schedules in an automation configuration file.
 
 ```yaml
 version: 1
@@ -40,11 +31,16 @@ projects:
         prompt: hello-world
         skills:
           - example-skill
+        schedule:
+          cron: "17 * * * *" # Every hour at minute 17
+          timezone: UTC
 ```
 
 Prompt and skill references may include `.md` or omit it.
 
-## Validate Configuration
+### Validate Configuration
+
+Validate the configuration and referenced Markdown files without authentication or write permissions.
 
 ```yaml
 name: Validate Automations
@@ -60,32 +56,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: owner/code-automations@v0
+      - uses: julien777z/code-automations@v0
         with:
           mode: validate
-          automations-file-path: example/automations.yaml
-          prompts-directory-path: example/prompts
-          skills-directory-path: example/skills
+          automations-file-path: automations.yaml
+          prompts-directory-path: prompts
+          skills-directory-path: skills
 ```
 
-## Run Automations
+### Run Automations
+
+Run a selected automation manually or run configured automations on their schedules.
 
 ```yaml
 name: Run Automations
 
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "17 * * * *" # Every hour at minute 17
   workflow_dispatch:
     inputs:
       run-automation:
         description: Globally unique automation name
         required: false
         type: string
-
-concurrency:
-  group: ${{ github.repository }}-automation-dispatcher
-  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -97,16 +91,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: owner/code-automations@v0
+      - uses: julien777z/code-automations@v0
         with:
-          automations-file-path: example/automations.yaml
-          prompts-directory-path: example/prompts
-          skills-directory-path: example/skills
+          automations-file-path: automations.yaml
+          prompts-directory-path: prompts
+          skills-directory-path: skills
           run-automation: ${{ inputs.run-automation }}
+          codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
 ```
 
-An empty `run-automation` dispatches every due scheduled automation.
+## Inputs
+
+| Input | Default | Purpose |
+| --- | --- | --- |
+| `automations-file-path` | `automations.yaml` | Locates the automation configuration in the checked-out repository. |
+| `prompts-directory-path` | Required | Locates prompt Markdown files in the checked-out repository. |
+| `skills-directory-path` | Required | Locates skill Markdown files in the checked-out repository. |
+| `mode` | `dispatch` | Selects configuration validation or automation dispatch. |
+| `run-automation` | `""` | Selects a manual automation; an empty value evaluates configured schedules. |
+| `codex-auth-json` | `""` | Provides the authentication document required for dispatch. |
+| `github-token` | `""` | Provides repository access required for dispatch. |
 
 ## Local Development
 
