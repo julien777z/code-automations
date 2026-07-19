@@ -40,7 +40,7 @@ Prompt and skill references may include `.md` or omit it.
 
 ### Validate Configuration
 
-Validate the configuration and referenced Markdown files without authentication or write permissions.
+Validate the configuration and referenced Markdown files.
 
 ```yaml
 name: Validate Automations
