@@ -29,6 +29,6 @@ jobs:
           automations-file-path: example/automations.yaml
           prompts-directory-path: example/prompts
           skills-directory-path: example/skills
-          run-automation: ${{ inputs.automation_name }}
+          run-automation-name: ${{ inputs.automation_name }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}

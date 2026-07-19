@@ -62,6 +62,7 @@ jobs:
           automations-file-path: automations.yaml
           prompts-directory-path: prompts
           skills-directory-path: skills
+          codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
 ```
 
 ### Run Automations
@@ -96,10 +97,17 @@ jobs:
           automations-file-path: automations.yaml
           prompts-directory-path: prompts
           skills-directory-path: skills
-          run-automation: ${{ inputs.automation_name }}
+          run-automation-name: ${{ inputs.automation_name }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
 ```
+
+## Modes
+
+| Mode | Behavior |
+| --- | --- |
+| `validate` | Validates the automation configuration and referenced prompt and skill files. |
+| `dispatch` | Runs `run-automation-name` when provided; otherwise runs automations scheduled for the current minute. |
 
 ## Inputs
 
@@ -108,9 +116,9 @@ jobs:
 | `automations-file-path` | Required | Locates the automation configuration in the checked-out repository. |
 | `prompts-directory-path` | Required | Locates prompt Markdown files in the checked-out repository. |
 | `skills-directory-path` | Required | Locates skill Markdown files in the checked-out repository. |
-| `mode` | `dispatch` | Selects configuration validation or automation dispatch. |
-| `run-automation` | `""` | Selects a manual automation; an empty value evaluates configured schedules. |
-| `codex-auth-json` | `""` | Provides the authentication document required for dispatch. |
+| `mode` | `dispatch` | Selects the `validate` or `dispatch` behavior. |
+| `run-automation-name` | `""` | Selects a manual automation; an empty value evaluates configured schedules. |
+| `codex-auth-json` | Required | Provides the authentication document required for dispatch. |
 | `github-token` | `""` | Provides repository access required for dispatch. |
 
 ## Local Development

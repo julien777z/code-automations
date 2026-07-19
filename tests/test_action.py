@@ -21,7 +21,7 @@ class TestAction:
             "github-token",
             "mode",
             "prompts-directory-path",
-            "run-automation",
+            "run-automation-name",
             "skills-directory-path",
         }
         assert inputs["automations-file-path"]["required"] is True
@@ -30,6 +30,8 @@ class TestAction:
         assert "default" not in inputs["prompts-directory-path"]
         assert inputs["skills-directory-path"]["required"] is True
         assert "default" not in inputs["skills-directory-path"]
+        assert inputs["codex-auth-json"]["required"] is True
+        assert "default" not in inputs["codex-auth-json"]
         assert inputs["mode"]["default"] == "dispatch"
         assert "GITHUB_EVENT_NAME" in action["runs"]["steps"][0]["env"]
         assert "schedule|workflow_dispatch" in action["runs"]["steps"][0]["run"]

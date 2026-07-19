@@ -22,3 +22,4 @@ jobs:
           mode: validate
           prompts-directory-path: example/prompts
           skills-directory-path: example/skills
+          codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}

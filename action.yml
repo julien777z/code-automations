@@ -20,14 +20,13 @@ inputs:
     description: Operation to run — validate or dispatch.
     required: false
     default: dispatch
-  run-automation:
+  run-automation-name:
     description: Automation name for manual dispatch. Empty dispatches scheduled automations.
     required: false
     default: ""
   codex-auth-json:
     description: Complete Codex authentication document required to run automations.
-    required: false
-    default: ""
+    required: true
   github-token:
     description: GitHub token with access to every configured repository.
     required: false
@@ -164,7 +163,7 @@ runs:
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
         PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
         SKILLS_DIRECTORY_PATH: ${{ inputs.skills-directory-path }}
-        RUN_AUTOMATION: ${{ inputs.run-automation }}
+        RUN_AUTOMATION: ${{ inputs.run-automation-name }}
       run: |
         export AUTOMATION_COMMAND_PATH="$PATH"
         automation_command=(
