@@ -32,7 +32,7 @@ projects:
         skills:
           - example-skill
         schedule:
-          cron: "17 * * * *" # Every hour at minute 17
+          cron: "0 9 * * 1" # Every Monday at 09:00 UTC
           timezone: UTC
 ```
 
@@ -73,7 +73,7 @@ name: Run Automations
 
 on:
   schedule:
-    - cron: "17 * * * *" # Every hour at minute 17
+    - cron: "0 9 * * 1" # Every Monday at 09:00 UTC
   workflow_dispatch:
     inputs:
       automation_name:
