@@ -16,6 +16,8 @@ Validate and run repository-owned automations across one or more GitHub reposito
 ### Configure Automations
 
 Define projects, repositories, prompts, skills, and optional schedules in an automation configuration file.
+This example runs `hello-world` every Monday at 09:00 UTC across the current repository and
+`owner/related-repository`.
 
 ```yaml
 version: 1
@@ -36,7 +38,7 @@ projects:
           timezone: UTC
 ```
 
-Prompt and skill references may include `.md` or omit it.
+> Note: Prompt and skill references may include `.md` or omit it.
 
 ### Validate Configuration
 
