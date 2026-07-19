@@ -12,7 +12,6 @@ from code_automations.models.dispatching import (
 from code_automations.models.runtime import DispatchRuntime
 from code_automations.publication import changed_repositories, publish_pull_requests
 from code_automations.rendering import render_target
-from code_automations.state import save_state
 from code_automations.workspace import create_workspace
 
 logger = logging.getLogger(__name__)
@@ -59,7 +58,7 @@ def dispatch_due(
     executor: Executor = execute_automation,
     submission_handler: SubmissionHandler | None = None,
 ) -> list[SubmittedAutomation]:
-    """Execute due automations and advance state only after publication succeeds."""
+    """Execute due automations and stop at the first failure."""
 
     submissions: list[SubmittedAutomation] = []
 
@@ -71,10 +70,6 @@ def dispatch_due(
         )
 
         result = dispatch_target(request, runtime, executor)
-
-        scheduled_dispatch.state.successful[item.target.name] = item.scheduled_for
-
-        save_state(scheduled_dispatch.state_path, scheduled_dispatch.state)
 
         submission = SubmittedAutomation(name=item.target.name, result=result)
         submissions.append(submission)

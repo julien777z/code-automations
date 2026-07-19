@@ -88,7 +88,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   dispatch:
@@ -96,7 +96,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           persist-credentials: false
       - uses: owner/code-automations@v0
         with:
@@ -107,7 +106,7 @@ jobs:
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
 ```
 
-An empty `run-automation` dispatches every due scheduled automation and preserves successful scheduling state.
+An empty `run-automation` dispatches every due scheduled automation.
 
 ## Local Development
 

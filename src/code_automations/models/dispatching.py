@@ -1,9 +1,8 @@
 import logging
 from datetime import datetime
-from pathlib import Path
-from typing import Final, Literal
+from typing import Final
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
 from code_automations.models.execution import PublishedPullRequest
@@ -11,22 +10,12 @@ from code_automations.models.execution import PublishedPullRequest
 logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = (
-    "AutomationState",
     "DueAutomation",
     "ScheduledDispatch",
     "SubmittedAutomation",
     "ExecutionRequest",
     "ExecutionResult",
 )
-
-
-class AutomationState(BaseModel):
-    """Track successful scheduled submissions."""
-
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    version: Literal[1] = 1
-    successful: dict[str, AwareDatetime] = Field(default_factory=dict)
 
 
 class DueAutomation(BaseModel):
@@ -73,5 +62,3 @@ class ScheduledDispatch(BaseModel):
 
     loaded: LoadedConfiguration
     due: list[DueAutomation]
-    state: AutomationState
-    state_path: Path

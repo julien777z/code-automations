@@ -32,7 +32,6 @@ class CliArguments(BaseModel):
     command: Literal["validate", "render", "due", "dispatch"]
     automation: str | None = None
     scheduled: bool = False
-    state: Path | None = None
     now: str | None = None
 
 

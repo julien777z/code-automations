@@ -139,23 +139,6 @@ runs:
         --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
         --skills-directory "$GITHUB_WORKSPACE/$SKILLS_DIRECTORY_PATH"
         validate
-    - name: Load Scheduled Automation State
-      if: inputs.mode == 'dispatch' && inputs.run-automation == ''
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
-      run: |
-        credentials=(
-          -c credential.helper=
-          -c 'credential.https://github.com.helper=!gh auth git-credential'
-        )
-        state_ref="$(git "${credentials[@]}" ls-remote --heads "https://github.com/$GITHUB_REPOSITORY.git" automation-state)"
-        if [ -n "$state_ref" ]; then
-          git "${credentials[@]}" fetch "https://github.com/$GITHUB_REPOSITORY.git" automation-state:refs/remotes/origin/automation-state
-          git show origin/automation-state:state.json > "$RUNNER_TEMP/state.json"
-        else
-          printf '{"version":1,"successful":{}}\n' > "$RUNNER_TEMP/state.json"
-        fi
     - name: Set Up Automation Authentication
       id: authentication
       if: inputs.mode == 'dispatch'
@@ -173,7 +156,6 @@ runs:
         printf 'home=%s\n' "$authentication_home" >> "$GITHUB_OUTPUT"
         printf 'github-home=%s\n' "$github_home" >> "$GITHUB_OUTPUT"
     - name: Run Automations
-      id: dispatch
       if: inputs.mode == 'dispatch'
       shell: bash
       env:
@@ -196,35 +178,8 @@ runs:
         if [ -n "$RUN_AUTOMATION" ]; then
           "${automation_command[@]}" --automation "$RUN_AUTOMATION"
         else
-          "${automation_command[@]}" --scheduled --state "$RUNNER_TEMP/state.json"
+          "${automation_command[@]}" --scheduled
         fi
-    - name: Persist Scheduled Automation State
-      if: always() && inputs.mode == 'dispatch' && inputs.run-automation == '' && steps.dispatch.outcome != 'skipped'
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
-      run: |
-        credentials=(
-          -c credential.helper=
-          -c 'credential.https://github.com.helper=!gh auth git-credential'
-        )
-        state_directory="$RUNNER_TEMP/automation-state"
-        if git show-ref --verify --quiet refs/remotes/origin/automation-state; then
-          git worktree add -B automation-state "$state_directory" origin/automation-state
-        else
-          git worktree add --detach "$state_directory"
-          git -C "$state_directory" checkout --orphan automation-state
-          git -C "$state_directory" rm -rf .
-        fi
-        cp "$RUNNER_TEMP/state.json" "$state_directory/state.json"
-        git -C "$state_directory" add state.json
-        if git -C "$state_directory" diff --cached --quiet; then
-          exit 0
-        fi
-        git -C "$state_directory" config user.name github-actions[bot]
-        git -C "$state_directory" config user.email 41898282+github-actions[bot]@users.noreply.github.com
-        git -C "$state_directory" commit -m "Update automation state"
-        git -C "$state_directory" "${credentials[@]}" push "https://github.com/$GITHUB_REPOSITORY.git" HEAD:automation-state
     - name: Remove Automation Authentication
       if: always() && inputs.mode == 'dispatch'
       shell: bash

@@ -21,7 +21,6 @@ from code_automations.models.dispatching import (
 from code_automations.models.runtime import ActionsRuntime, resolve_dispatch_runtime
 from code_automations.rendering import render_target
 from code_automations.scheduling import due_automations
-from code_automations.state import load_state
 from code_automations.targets import (
     find_target,
     has_self_repository,
@@ -94,14 +93,12 @@ def build_parser() -> argparse.ArgumentParser:
     render_parser.add_argument("automation")
 
     due_parser = subparsers.add_parser("due")
-    due_parser.add_argument("--state", type=Path)
     due_parser.add_argument("--now")
 
     dispatch_parser = subparsers.add_parser("dispatch")
     selection = dispatch_parser.add_mutually_exclusive_group(required=True)
     selection.add_argument("--automation")
     selection.add_argument("--scheduled", action="store_true")
-    dispatch_parser.add_argument("--state", type=Path)
     dispatch_parser.add_argument("--now")
 
     return parser
@@ -140,11 +137,10 @@ def run(arguments: CliArguments) -> int:
 
         return 0
 
-    state = load_state(arguments.state)
     now = parse_datetime(arguments.now)
 
     if arguments.command == "due":
-        logger.info(due_payload(due_automations(resolve_targets(loaded, self_repository), state, now)))
+        logger.info(due_payload(due_automations(resolve_targets(loaded, self_repository), now)))
 
         return 0
 
@@ -159,15 +155,13 @@ def run(arguments: CliArguments) -> int:
 
         return 0
 
-    if not arguments.scheduled or arguments.state is None:
-        raise ConfigurationError("scheduled dispatch requires --state")
+    if not arguments.scheduled:
+        raise ConfigurationError("dispatch requires an automation or scheduled selection")
 
-    due = due_automations(resolve_targets(loaded, self_repository), state, now)
+    due = due_automations(resolve_targets(loaded, self_repository), now)
     scheduled_dispatch = ScheduledDispatch(
         loaded=loaded,
         due=due,
-        state=state,
-        state_path=arguments.state,
     )
 
     dispatch_due(

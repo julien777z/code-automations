@@ -7,7 +7,6 @@ from code_automations.dispatching import dispatch_due
 from code_automations.errors import DispatchError
 from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
 from code_automations.models.dispatching import (
-    AutomationState,
     DueAutomation,
     ExecutionRequest,
     ExecutionResult,
@@ -15,29 +14,25 @@ from code_automations.models.dispatching import (
 )
 from code_automations.models.runtime import DispatchRuntime
 from code_automations.scheduling import due_automations
-from code_automations.state import load_state
 from code_automations.targets import resolve_targets
 
 
 class TestDispatching:
     """Test fail-fast scheduled automation execution."""
 
-    def test_failed_execution_stops_without_advancing_state(
+    def test_failed_execution_stops_dispatch(
         self,
         scheduled_configuration: LoadedConfiguration,
         tmp_path: Path,
     ) -> None:
-        """Propagate the first failure without recording its occurrence."""
+        """Propagate the first execution failure."""
 
         target = resolve_targets(scheduled_configuration, "owner/repository")[0]
-        now = datetime(2025, 7, 15, 18, 25, tzinfo=UTC)
-        due = due_automations([target], AutomationState(), now)
-        state_path = tmp_path / "state.json"
+        now = datetime(2025, 7, 15, 18, 0, tzinfo=UTC)
+        due = due_automations([target], now)
         scheduled_dispatch = ScheduledDispatch(
             loaded=scheduled_configuration,
             due=due,
-            state=AutomationState(),
-            state_path=state_path,
         )
 
         runtime = self.runtime(tmp_path)
@@ -53,22 +48,18 @@ class TestDispatching:
         with pytest.raises(DispatchError, match="execution failed"):
             dispatch_due(scheduled_dispatch, runtime, fail)
 
-        assert scheduled_dispatch.state.successful == {}
-        assert not state_path.exists()
-
-    def test_earlier_success_is_saved_before_a_later_failure(
+    def test_earlier_success_is_reported_before_a_later_failure(
         self,
         scheduled_configuration: LoadedConfiguration,
         tmp_path: Path,
     ) -> None:
-        """Retain completed state while stopping before remaining automations."""
+        """Report completed work while stopping before remaining automations."""
 
         target = resolve_targets(scheduled_configuration, "owner/repository")[0]
         first = self.named_target(target, "first")
         second = self.named_target(target, "second")
         third = self.named_target(target, "third")
         scheduled_for = datetime(2025, 7, 15, 18, 0, tzinfo=UTC)
-        state_path = tmp_path / "state.json"
         scheduled_dispatch = ScheduledDispatch(
             loaded=scheduled_configuration,
             due=[
@@ -76,8 +67,6 @@ class TestDispatching:
                 DueAutomation(target=second, scheduled_for=scheduled_for),
                 DueAutomation(target=third, scheduled_for=scheduled_for),
             ],
-            state=AutomationState(),
-            state_path=state_path,
         )
 
         runtime = self.runtime(tmp_path)
@@ -105,7 +94,6 @@ class TestDispatching:
 
         assert executed == ["first", "second"]
         assert reported == ["first"]
-        assert load_state(state_path).successful == {"first": scheduled_for}
 
     def runtime(self, tmp_path: Path) -> DispatchRuntime:
         """Build a complete dispatch runtime."""

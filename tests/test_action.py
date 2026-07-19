@@ -47,6 +47,9 @@ class TestAction:
         assert '--prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"' in rendered
         assert '--skills-directory "$GITHUB_WORKSPACE/$SKILLS_DIRECTORY_PATH"' in rendered
         assert ".github/actionlint" not in rendered
+        assert "state.json" not in rendered
+        assert "automation-state" not in rendered
+        assert "--state" not in rendered
 
         dockerfile = (action_path.parent / "docker/Dockerfile").read_text(encoding="utf-8")
 

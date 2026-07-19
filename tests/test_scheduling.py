@@ -3,7 +3,6 @@ from datetime import UTC, datetime
 import pytest
 
 from code_automations.models.configuration import LoadedConfiguration, ScheduleConfig
-from code_automations.models.dispatching import AutomationState
 from code_automations.scheduling import due_automations, latest_occurrence
 from code_automations.targets import resolve_targets
 
@@ -31,38 +30,24 @@ class TestScheduling:
 
         assert occurrence == datetime(2025, 11, 2, 8, 30, tzinfo=UTC)
 
-    def test_due_uses_latest_missed_occurrence_and_deduplicates(
-        self, scheduled_configuration: LoadedConfiguration
-    ) -> None:
-        """Select the latest missed occurrence and suppress an already-recorded one."""
+    def test_due_uses_current_occurrence(self, scheduled_configuration: LoadedConfiguration) -> None:
+        """Select an occurrence scheduled for the current minute."""
 
         automation_targets = resolve_targets(scheduled_configuration, "owner/repository")
-        now = datetime(2025, 7, 15, 18, 25, tzinfo=UTC)
+        now = datetime(2025, 7, 15, 18, 0, tzinfo=UTC)
 
-        due = due_automations(automation_targets, AutomationState(), now)
+        due = due_automations(automation_targets, now)
 
         assert len(due) == 1
         assert due[0].scheduled_for == datetime(2025, 7, 15, 18, 0, tzinfo=UTC)
 
-        state = AutomationState(successful={"scheduled": due[0].scheduled_for})
-
-        assert due_automations(automation_targets, state, now) == []
-
-    def test_state_contains_only_successful_occurrences(self) -> None:
-        """Exclude unfinished scheduling state."""
-
-        assert AutomationState().model_dump() == {"version": 1, "successful": {}}
-
-    def test_occurrences_older_than_24_hours_are_not_due(
-        self, scheduled_configuration: LoadedConfiguration
-    ) -> None:
-        """Ignore a latest occurrence outside the catch-up window."""
+    def test_missed_occurrences_are_not_due(self, scheduled_configuration: LoadedConfiguration) -> None:
+        """Do not catch up an occurrence missed by an earlier dispatcher run."""
 
         automation_targets = resolve_targets(scheduled_configuration, "owner/repository")
-        automation_targets[0].automation.schedule = ScheduleConfig(cron="0 0 1 * *", timezone="UTC")
-        now = datetime(2025, 7, 15, 18, 0, tzinfo=UTC)
+        now = datetime(2025, 7, 15, 18, 1, tzinfo=UTC)
 
-        assert due_automations(automation_targets, AutomationState(), now) == []
+        assert due_automations(automation_targets, now) == []
 
     def test_disabled_automation_is_not_scheduled(self, scheduled_configuration: LoadedConfiguration) -> None:
         """Suppress scheduled execution while preserving the configured target."""
@@ -70,7 +55,7 @@ class TestScheduling:
         automation_targets = resolve_targets(scheduled_configuration, "owner/repository")
         automation_targets[0].automation.enabled = False
 
-        assert due_automations(automation_targets, AutomationState(), datetime.now(UTC)) == []
+        assert due_automations(automation_targets, datetime.now(UTC)) == []
         assert automation_targets[0].name == "scheduled"
 
     def test_latest_occurrence_requires_an_aware_datetime(self) -> None:

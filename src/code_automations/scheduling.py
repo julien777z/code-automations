@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from croniter import croniter
 
 from code_automations.models.configuration import AutomationTarget, ScheduleConfig
-from code_automations.models.dispatching import AutomationState, DueAutomation
+from code_automations.models.dispatching import DueAutomation
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +49,14 @@ def latest_occurrence(schedule: ScheduleConfig, now: datetime) -> datetime:
     return previous_instant
 
 
-def due_automations(
-    automation_targets: list[AutomationTarget], state: AutomationState, now: datetime
-) -> list[DueAutomation]:
-    """Find latest missed occurrences within the 24-hour catch-up window."""
+def due_automations(automation_targets: list[AutomationTarget], now: datetime) -> list[DueAutomation]:
+    """Find enabled automations scheduled for the current minute."""
 
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
 
     current = now.astimezone(UTC)
-    window_start = current - timedelta(hours=24)
+    current_minute = current.replace(second=0, microsecond=0)
     due: list[DueAutomation] = []
 
     for target in automation_targets:
@@ -68,10 +66,7 @@ def due_automations(
             continue
 
         occurrence = latest_occurrence(schedule, current)
-        successful = state.successful.get(target.name)
-        since = max(window_start, successful.astimezone(UTC)) if successful is not None else window_start
-
-        if occurrence > since:
+        if occurrence == current_minute:
             due.append(DueAutomation(target=target, scheduled_for=occurrence))
 
     return due
