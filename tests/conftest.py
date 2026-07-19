@@ -11,8 +11,8 @@ def fragment_directories(tmp_path: Path) -> FragmentDirectories:
     """Provide independent prompt and skill directories."""
 
     return FragmentDirectories(
-        prompts=tmp_path / "examples/prompts",
-        skills=tmp_path / "examples/skills",
+        prompts=tmp_path / "example/prompts",
+        skills=tmp_path / "example/skills",
     )
 
 

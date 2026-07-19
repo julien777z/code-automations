@@ -26,21 +26,21 @@ class TestWorkspace:
             name="weekly-review",
             project="example",
             repositories=[ResolvedRepository(repository="owner/repository", branch="main")],
-            automation=AutomationConfig(prompt="examples/task"),
+            automation=AutomationConfig(prompt="example/task"),
         )
 
         loaded = LoadedConfiguration(
             root=tmp_path,
             fragment_directories=FragmentDirectories(
-                prompts=tmp_path / "examples/prompts",
-                skills=tmp_path / "examples/skills",
+                prompts=tmp_path / "example/prompts",
+                skills=tmp_path / "example/skills",
             ),
             config=AutomationsConfig(
                 version=1,
                 projects={
                     "example": ProjectConfig(
                         repositories={"owner/repository": RepositoryConfig()},
-                        automations={"weekly-review": AutomationConfig(prompt="examples/task")},
+                        automations={"weekly-review": AutomationConfig(prompt="example/task")},
                     )
                 },
             ),

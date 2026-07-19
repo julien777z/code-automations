@@ -27,9 +27,9 @@ jobs:
           persist-credentials: false
       - uses: ./
         with:
-          automations-file-path: examples/automations.yaml
-          prompts-directory-path: examples/prompts
-          skills-directory-path: examples/skills
+          automations-file-path: example/automations.yaml
+          prompts-directory-path: example/prompts
+          skills-directory-path: example/skills
           run-automation: ${{ inputs.run-automation }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}

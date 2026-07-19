@@ -18,7 +18,7 @@ jobs:
       - run: docker build --file docker/Dockerfile --tag code-automations-runner:test .
       - uses: ./
         with:
-          automations-file-path: examples/automations.yaml
+          automations-file-path: example/automations.yaml
           mode: validate
-          prompts-directory-path: examples/prompts
-          skills-directory-path: examples/skills
+          prompts-directory-path: example/prompts
+          skills-directory-path: example/skills
