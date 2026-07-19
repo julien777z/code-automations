@@ -4,8 +4,9 @@ Run repository-owned, multi-repository automations from one reusable GitHub Acti
 
 ## Setup
 
-Keep `automations.yaml` and the prompt and skill directories in the consumer repository. The included example
-uses `examples/prompts/` and `examples/skills/`. Configure these Actions secrets for every consumer repository:
+Keep the automation configuration and its prompt and skill directories in the consumer repository. The included
+example uses `examples/automations.yaml`, `examples/prompts/`, and `examples/skills/`. Configure these Actions
+secrets for every consumer repository:
 
 ```shell
 gh secret set CODEX_AUTH_JSON < ~/.codex/auth.json
@@ -68,7 +69,7 @@ jobs:
       - uses: owner/code-automations@v0
         with:
           mode: validate
-          automations-file-path: automations.yaml
+          automations-file-path: examples/automations.yaml
           prompts-directory-path: examples/prompts
           skills-directory-path: examples/skills
 ```
@@ -105,7 +106,7 @@ jobs:
           persist-credentials: false
       - uses: owner/code-automations@v0
         with:
-          automations-file-path: automations.yaml
+          automations-file-path: examples/automations.yaml
           prompts-directory-path: examples/prompts
           skills-directory-path: examples/skills
           run-automation: ${{ inputs.run-automation }}
@@ -125,6 +126,7 @@ poetry run pytest
 poetry run ruff check .
 poetry run ruff format --check .
 poetry run code-automations \
+  --config examples/automations.yaml \
   --prompts-directory examples/prompts \
   --skills-directory examples/skills \
   validate

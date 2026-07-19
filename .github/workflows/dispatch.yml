@@ -27,6 +27,7 @@ jobs:
           persist-credentials: false
       - uses: ./
         with:
+          automations-file-path: examples/automations.yaml
           prompts-directory-path: examples/prompts
           skills-directory-path: examples/skills
           run-automation: ${{ inputs.run-automation }}
