@@ -3,15 +3,25 @@ from pathlib import Path
 import pytest
 
 from code_automations.configuration import load_configuration
-from code_automations.models.configuration import LoadedConfiguration
+from code_automations.models.configuration import FragmentDirectories, LoadedConfiguration
 
 
 @pytest.fixture
-def automation_config_path(tmp_path: Path) -> Path:
+def fragment_directories(tmp_path: Path) -> FragmentDirectories:
+    """Provide independent prompt and skill directories."""
+
+    return FragmentDirectories(
+        prompts=tmp_path / "examples/prompts",
+        skills=tmp_path / "examples/skills",
+    )
+
+
+@pytest.fixture
+def automation_config_path(tmp_path: Path, fragment_directories: FragmentDirectories) -> Path:
     """Provide a valid automation configuration file."""
 
-    prompt = tmp_path / "prompts/examples/hello-world.md"
-    skill = tmp_path / "skills/examples/concise.md"
+    prompt = fragment_directories.prompts / "hello-world.md"
+    skill = fragment_directories.skills / "concise.md"
     prompt.parent.mkdir(parents=True)
     skill.parent.mkdir(parents=True)
 
@@ -30,9 +40,9 @@ projects:
         branch: develop
     automations:
       hello-world:
-        prompt: examples/hello-world
+        prompt: hello-world
         skills:
-          - examples/concise
+          - concise
 """,
         encoding="utf-8",
     )
@@ -41,10 +51,14 @@ projects:
 
 
 @pytest.fixture
-def scheduled_configuration(tmp_path: Path) -> LoadedConfiguration:
+def scheduled_configuration(
+    tmp_path: Path,
+    fragment_directories: FragmentDirectories,
+) -> LoadedConfiguration:
     """Provide a scheduled automation configuration."""
 
-    prompt = tmp_path / "prompts/examples/task.md"
+    prompt = fragment_directories.prompts / "task.md"
+    fragment_directories.skills.mkdir(parents=True)
     prompt.parent.mkdir(parents=True)
 
     prompt.write_text("Run the task.\n", encoding="utf-8")
@@ -58,7 +72,7 @@ projects:
       self: {}
     automations:
       scheduled:
-        prompt: examples/task
+        prompt: task
         schedule:
           cron: "0 * * * *"
           timezone: America/Los_Angeles
@@ -66,4 +80,4 @@ projects:
         encoding="utf-8",
     )
 
-    return load_configuration(config_path)
+    return load_configuration(config_path, fragment_directories)

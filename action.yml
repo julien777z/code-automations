@@ -11,6 +11,12 @@ inputs:
     description: Path to the automation configuration relative to the checked-out repository.
     required: false
     default: automations.yaml
+  prompts-directory-path:
+    description: Path to the prompt Markdown directory relative to the checked-out repository.
+    required: true
+  skills-directory-path:
+    description: Path to the skill Markdown directory relative to the checked-out repository.
+    required: true
   mode:
     description: Operation to run — validate or dispatch.
     required: false
@@ -36,6 +42,8 @@ runs:
       env:
         AUTOMATION_MODE: ${{ inputs.mode }}
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
+        PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
+        SKILLS_DIRECTORY_PATH: ${{ inputs.skills-directory-path }}
         CODEX_AUTH_JSON: ${{ inputs.codex-auth-json }}
         AUTOMATION_GITHUB_TOKEN: ${{ inputs.github-token }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -75,17 +83,29 @@ runs:
 
         workspace_root="$(realpath "$GITHUB_WORKSPACE")"
         automation_file_path="$(realpath -m -- "$workspace_root/$AUTOMATIONS_FILE_PATH")"
+        prompts_directory_path="$(realpath -m -- "$workspace_root/$PROMPTS_DIRECTORY_PATH")"
+        skills_directory_path="$(realpath -m -- "$workspace_root/$SKILLS_DIRECTORY_PATH")"
 
-        case "$automation_file_path" in
-          "$workspace_root"/*) ;;
-          *)
-            echo "automation file must resolve inside the checked-out repository" >&2
-            exit 1
-            ;;
-        esac
+        for resolved_path in "$automation_file_path" "$prompts_directory_path" "$skills_directory_path"; do
+          case "$resolved_path" in
+            "$workspace_root"/*) ;;
+            *)
+              echo "automation resources must resolve inside the checked-out repository" >&2
+              exit 1
+              ;;
+          esac
+        done
 
         test -f "$automation_file_path" || {
           echo "automation file does not exist: $AUTOMATIONS_FILE_PATH" >&2
+          exit 1
+        }
+        test -d "$prompts_directory_path" || {
+          echo "prompt directory does not exist: $PROMPTS_DIRECTORY_PATH" >&2
+          exit 1
+        }
+        test -d "$skills_directory_path" || {
+          echo "skill directory does not exist: $SKILLS_DIRECTORY_PATH" >&2
           exit 1
         }
 
@@ -111,7 +131,14 @@ runs:
       shell: bash
       env:
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
-      run: poetry --directory "$GITHUB_ACTION_PATH" run code-automations --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH" validate
+        PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
+        SKILLS_DIRECTORY_PATH: ${{ inputs.skills-directory-path }}
+      run: >-
+        poetry --directory "$GITHUB_ACTION_PATH" run code-automations
+        --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH"
+        --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
+        --skills-directory "$GITHUB_WORKSPACE/$SKILLS_DIRECTORY_PATH"
+        validate
     - name: Load Scheduled Automation State
       if: inputs.mode == 'dispatch' && inputs.run-automation == ''
       shell: bash
@@ -154,13 +181,22 @@ runs:
         AUTOMATION_CODEX_HOME: ${{ steps.authentication.outputs.home }}
         AUTOMATION_GITHUB_HOME: ${{ steps.authentication.outputs.github-home }}
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
+        PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
+        SKILLS_DIRECTORY_PATH: ${{ inputs.skills-directory-path }}
         RUN_AUTOMATION: ${{ inputs.run-automation }}
       run: |
         export AUTOMATION_COMMAND_PATH="$PATH"
+        automation_command=(
+          poetry --directory "$GITHUB_ACTION_PATH" run code-automations
+          --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH"
+          --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
+          --skills-directory "$GITHUB_WORKSPACE/$SKILLS_DIRECTORY_PATH"
+          dispatch
+        )
         if [ -n "$RUN_AUTOMATION" ]; then
-          poetry --directory "$GITHUB_ACTION_PATH" run code-automations --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH" dispatch --automation "$RUN_AUTOMATION"
+          "${automation_command[@]}" --automation "$RUN_AUTOMATION"
         else
-          poetry --directory "$GITHUB_ACTION_PATH" run code-automations --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH" dispatch --scheduled --state "$RUNNER_TEMP/state.json"
+          "${automation_command[@]}" --scheduled --state "$RUNNER_TEMP/state.json"
         fi
     - name: Persist Scheduled Automation State
       if: always() && inputs.mode == 'dispatch' && inputs.run-automation == '' && steps.dispatch.outcome != 'skipped'

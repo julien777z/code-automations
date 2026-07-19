@@ -5,6 +5,7 @@ from code_automations.models.configuration import (
     AutomationConfig,
     AutomationsConfig,
     AutomationTarget,
+    FragmentDirectories,
     LoadedConfiguration,
     ProjectConfig,
     RepositoryConfig,
@@ -30,6 +31,10 @@ class TestWorkspace:
 
         loaded = LoadedConfiguration(
             root=tmp_path,
+            fragment_directories=FragmentDirectories(
+                prompts=tmp_path / "examples/prompts",
+                skills=tmp_path / "examples/skills",
+            ),
             config=AutomationsConfig(
                 version=1,
                 projects={

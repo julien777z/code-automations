@@ -4,8 +4,8 @@ Run repository-owned, multi-repository automations from one reusable GitHub Acti
 
 ## Setup
 
-Keep `automations.yaml`, `prompts/`, and `skills/` in the consumer repository. Configure these Actions
-secrets for every template-derived repository:
+Keep `automations.yaml` and the prompt and skill directories in the consumer repository. The included example
+uses `examples/prompts/` and `examples/skills/`. Configure these Actions secrets for every consumer repository:
 
 ```shell
 gh secret set CODEX_AUTH_JSON < ~/.codex/auth.json
@@ -29,16 +29,17 @@ projects:
         branch: develop
     automations:
       hello-world:
-        prompt: examples/hello-world
+        prompt: hello-world
         skills:
-          - examples/concise
+          - concise
 ```
 
 Project keys are arbitrary. Repository mapping order defines the primary repository; each following repository
 is writable by the same Codex session. `self` resolves to the repository running the workflow. A repository
-branch defaults to `main`. Prompt and skill references such as `foo/bar` load `prompts/foo/bar.md` and
-`skills/foo/bar.md`. Add `schedule.cron` and `schedule.timezone` for scheduled runs; other automations are
-manual-only.
+branch defaults to `main`. Prompt and skill references omit `.md` and resolve independently against the directories
+passed to the action. For example, `prompt: foo/bar` with `prompts-directory-path: examples/prompts` loads
+`examples/prompts/foo/bar.md`. Add `schedule.cron` and `schedule.timezone` for scheduled runs; other automations
+are manual-only.
 
 Each run is a single attempt. It creates the same `automation/<name>/...` branch in every changed repository and
 opens a separate pull request targeting each configured base branch. GitHub rejects an existing remote branch when
@@ -68,6 +69,8 @@ jobs:
         with:
           mode: validate
           automations-file-path: automations.yaml
+          prompts-directory-path: examples/prompts
+          skills-directory-path: examples/skills
 ```
 
 ## Run Automations
@@ -103,6 +106,8 @@ jobs:
       - uses: owner/code-automations@v0
         with:
           automations-file-path: automations.yaml
+          prompts-directory-path: examples/prompts
+          skills-directory-path: examples/skills
           run-automation: ${{ inputs.run-automation }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
@@ -119,7 +124,10 @@ poetry install
 poetry run pytest
 poetry run ruff check .
 poetry run ruff format --check .
-poetry run code-automations validate
+poetry run code-automations \
+  --prompts-directory examples/prompts \
+  --skills-directory examples/skills \
+  validate
 ```
 
 ## License

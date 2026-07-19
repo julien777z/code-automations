@@ -20,14 +20,20 @@ class TestAction:
             "automations-file-path",
             "github-token",
             "mode",
+            "prompts-directory-path",
             "run-automation",
+            "skills-directory-path",
         }
         assert inputs["automations-file-path"]["default"] == "automations.yaml"
+        assert inputs["prompts-directory-path"]["required"] is True
+        assert "default" not in inputs["prompts-directory-path"]
+        assert inputs["skills-directory-path"]["required"] is True
+        assert "default" not in inputs["skills-directory-path"]
         assert inputs["mode"]["default"] == "dispatch"
         assert "GITHUB_EVENT_NAME" in action["runs"]["steps"][0]["env"]
         assert "schedule|workflow_dispatch" in action["runs"]["steps"][0]["run"]
         assert (
-            "automation file must resolve inside the checked-out repository"
+            "automation resources must resolve inside the checked-out repository"
             in action["runs"]["steps"][0]["run"]
         )
 
@@ -38,6 +44,9 @@ class TestAction:
         assert "docker build" in rendered
         assert "AUTOMATION_RUNNER_IMAGE" in rendered
         assert "AUTOMATION_RUNNER_USER" in rendered
+        assert '--prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"' in rendered
+        assert '--skills-directory "$GITHUB_WORKSPACE/$SKILLS_DIRECTORY_PATH"' in rendered
+        assert ".github/actionlint" not in rendered
 
         dockerfile = (action_path.parent / "docker/Dockerfile").read_text(encoding="utf-8")
 

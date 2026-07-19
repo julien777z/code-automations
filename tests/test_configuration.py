@@ -11,7 +11,11 @@ from code_automations.configuration import (
 )
 from code_automations.errors import ConfigurationError
 from code_automations.models.cli import CliArguments
-from code_automations.models.configuration import AutomationsConfig, validate_branch
+from code_automations.models.configuration import (
+    AutomationsConfig,
+    FragmentDirectories,
+    validate_branch,
+)
 from code_automations.rendering import render_target
 from code_automations.targets import find_target
 
@@ -19,10 +23,14 @@ from code_automations.targets import find_target
 class TestConfiguration:
     """Test automation configuration loading and validation."""
 
-    def test_valid_nested_configuration_renders_deterministically(self, automation_config_path: Path) -> None:
+    def test_valid_nested_configuration_renders_deterministically(
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
+    ) -> None:
         """Resolve ordered repository and fragment configuration."""
 
-        loaded = load_configuration(automation_config_path)
+        loaded = load_configuration(automation_config_path, fragment_directories)
         target = find_target(loaded, "owner/repository", "hello-world")
 
         first = render_target(loaded, target)
@@ -35,10 +43,14 @@ class TestConfiguration:
             "owner/secondary",
         ]
         assert [repository.branch for repository in target.repositories] == ["main", "develop"]
-        assert first.index("# Skill: examples/concise") < first.index("# Prompt")
+        assert first.index("# Skill: concise") < first.index("# Prompt")
         assert "owner/secondary: owner/secondary (base branch: develop)" in first
 
-    def test_repository_branches_default_independently(self, automation_config_path: Path) -> None:
+    def test_repository_branches_default_independently(
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
+    ) -> None:
         """Default each omitted repository branch to main."""
 
         configuration = automation_config_path.read_text(encoding="utf-8")
@@ -47,7 +59,7 @@ class TestConfiguration:
             encoding="utf-8",
         )
 
-        loaded = load_configuration(automation_config_path)
+        loaded = load_configuration(automation_config_path, fragment_directories)
         target = find_target(loaded, "owner/repository", "hello-world")
 
         assert [repository.branch for repository in target.repositories] == ["main", "main"]
@@ -55,6 +67,7 @@ class TestConfiguration:
     def test_explicit_repositories_do_not_require_a_local_origin(
         self,
         automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Render explicit repositories without resolving the reserved self value."""
@@ -69,6 +82,8 @@ class TestConfiguration:
         result = run(
             CliArguments(
                 config=automation_config_path,
+                prompts_directory=fragment_directories.prompts,
+                skills_directory=fragment_directories.skills,
                 command="render",
                 automation="hello-world",
             )
@@ -76,7 +91,11 @@ class TestConfiguration:
 
         assert result == 0
 
-    def test_duplicate_resolved_repositories_are_rejected(self, automation_config_path: Path) -> None:
+    def test_duplicate_resolved_repositories_are_rejected(
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
+    ) -> None:
         """Reject a self repository repeated as an explicit repository."""
 
         configuration = automation_config_path.read_text(encoding="utf-8")
@@ -86,11 +105,12 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
-            validate_configuration(automation_config_path, "owner/repository")
+            validate_configuration(automation_config_path, fragment_directories, "owner/repository")
 
     def test_case_insensitive_duplicate_repositories_are_rejected(
         self,
         automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
     ) -> None:
         """Reject explicit repositories that duplicate self with different casing."""
 
@@ -101,11 +121,12 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
-            validate_configuration(automation_config_path, "owner/repository")
+            validate_configuration(automation_config_path, fragment_directories, "owner/repository")
 
     def test_explicit_case_insensitive_duplicates_are_rejected(
         self,
         automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
     ) -> None:
         """Reject case-only duplicates without requiring the reserved self repository."""
 
@@ -119,12 +140,13 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
-            validate_configuration(automation_config_path)
+            validate_configuration(automation_config_path, fragment_directories)
 
     @pytest.mark.parametrize("repository", ["owner/.", "owner/..", "owner/repository.git"])
     def test_invalid_repository_path_segments_are_rejected(
         self,
         automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
         repository: str,
     ) -> None:
         """Reject repository names GitHub cannot clone or publish."""
@@ -136,7 +158,7 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError, match="invalid repository identifier"):
-            load_configuration(automation_config_path)
+            load_configuration(automation_config_path, fragment_directories)
 
     def test_control_characters_are_rejected_from_branches(self) -> None:
         """Reject branch names that Git cannot represent."""
@@ -144,47 +166,60 @@ class TestConfiguration:
         with pytest.raises(ValueError, match="invalid Git branch name"):
             validate_branch("topic\x7fbad")
 
-    def test_missing_fragment_is_rejected(self, automation_config_path: Path) -> None:
+    def test_missing_fragment_is_rejected(
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
+    ) -> None:
         """Reject a missing prompt or skill file."""
 
-        (automation_config_path.parent / "skills/examples/concise.md").unlink()
+        (fragment_directories.skills / "concise.md").unlink()
 
         with pytest.raises(ConfigurationError, match="missing or non-regular"):
-            load_configuration(automation_config_path)
+            load_configuration(automation_config_path, fragment_directories)
 
     @pytest.mark.parametrize(
         "reference",
         ["../secret", "foo/../secret", "/secret", "foo\\bar", "foo/bar.md", "foo//bar"],
     )
-    def test_unsafe_references_are_rejected(self, automation_config_path: Path, reference: str) -> None:
+    def test_unsafe_references_are_rejected(
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
+        reference: str,
+    ) -> None:
         """Reject traversal, absolute, backslash, suffix, and empty path segments."""
 
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
-            configuration.replace("examples/hello-world", reference),
+            configuration.replace("hello-world", reference),
             encoding="utf-8",
         )
 
         with pytest.raises(ConfigurationError):
-            load_configuration(automation_config_path)
+            load_configuration(automation_config_path, fragment_directories)
 
-    def test_symlink_escape_is_rejected(self, automation_config_path: Path) -> None:
+    def test_symlink_escape_is_rejected(
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
+    ) -> None:
         """Reject a reference whose symlink resolves outside its fragment directory."""
 
         root = automation_config_path.parent
         outside = root / "outside.md"
         outside.write_text("External.\n", encoding="utf-8")
-        link = root / "prompts/examples/link.md"
+        link = fragment_directories.prompts / "link.md"
         link.symlink_to(outside)
 
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
-            configuration.replace("examples/hello-world", "examples/link"),
+            configuration.replace("hello-world", "link"),
             encoding="utf-8",
         )
 
         with pytest.raises(ConfigurationError, match="escapes"):
-            load_configuration(automation_config_path)
+            load_configuration(automation_config_path, fragment_directories)
 
     def test_non_utf8_empty_and_non_regular_fragments_are_rejected(self, tmp_path: Path) -> None:
         """Reject invalid fragment content and file types."""
@@ -195,27 +230,48 @@ class TestConfiguration:
         invalid.write_bytes(b"\xff")
 
         with pytest.raises(ConfigurationError, match="not UTF-8"):
-            read_fragment(tmp_path, "prompts", "invalid")
+            read_fragment(directory, "prompt", "invalid")
 
         invalid.write_text("  \n", encoding="utf-8")
 
         with pytest.raises(ConfigurationError, match="empty"):
-            read_fragment(tmp_path, "prompts", "invalid")
+            read_fragment(directory, "prompt", "invalid")
 
         invalid.unlink()
         invalid.mkdir()
 
         with pytest.raises(ConfigurationError, match="non-regular"):
-            read_fragment(tmp_path, "prompts", "invalid")
+            read_fragment(directory, "prompt", "invalid")
 
-    def test_malformed_yaml_is_rejected(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize("missing", ["prompts", "skills"])
+    def test_missing_fragment_directories_are_rejected(
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
+        missing: str,
+    ) -> None:
+        """Reject missing prompt and skill directories independently."""
+
+        directory = getattr(fragment_directories, missing)
+        for path in directory.iterdir():
+            path.unlink()
+        directory.rmdir()
+
+        with pytest.raises(ConfigurationError, match=f"{missing.removesuffix('s')} directory does not exist"):
+            load_configuration(automation_config_path, fragment_directories)
+
+    def test_malformed_yaml_is_rejected(
+        self,
+        tmp_path: Path,
+        fragment_directories: FragmentDirectories,
+    ) -> None:
         """Reject malformed YAML."""
 
         config_path = tmp_path / "automations.yaml"
         config_path.write_text("projects: [\n", encoding="utf-8")
 
         with pytest.raises(ConfigurationError, match="unable to parse"):
-            load_configuration(config_path)
+            load_configuration(config_path, fragment_directories)
 
     @pytest.mark.parametrize(
         "invalid",
@@ -230,6 +286,7 @@ class TestConfiguration:
     def test_removed_and_unknown_fields_are_rejected(
         self,
         automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
         invalid: str,
     ) -> None:
         """Reject obsolete Cloud fields and unrecognized configuration."""
@@ -241,12 +298,13 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError):
-            load_configuration(automation_config_path)
+            load_configuration(automation_config_path, fragment_directories)
 
     @pytest.mark.parametrize("name", ["foo..bar", "foo.lock"])
     def test_unsafe_automation_names_are_rejected(
         self,
         automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
         name: str,
     ) -> None:
         """Reject names that would create invalid automation branches."""
@@ -258,9 +316,13 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError, match="invalid automation name"):
-            load_configuration(automation_config_path)
+            load_configuration(automation_config_path, fragment_directories)
 
-    def test_duplicate_global_names_are_rejected(self, automation_config_path: Path) -> None:
+    def test_duplicate_global_names_are_rejected(
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
+    ) -> None:
         """Reject automation names repeated across projects."""
 
         configuration = automation_config_path.read_text(encoding="utf-8")
@@ -271,20 +333,22 @@ class TestConfiguration:
       owner/other: {}
     automations:
       hello-world:
-        prompt: examples/hello-world
+        prompt: hello-world
 """,
             encoding="utf-8",
         )
 
         with pytest.raises(ConfigurationError, match="duplicate automation name"):
-            load_configuration(automation_config_path)
+            load_configuration(automation_config_path, fragment_directories)
 
     def test_configuration_validation_does_not_require_a_local_schema(
-        self, automation_config_path: Path
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
     ) -> None:
         """Validate consumer resources without requiring a copied schema file."""
 
-        validate_configuration(automation_config_path, "owner/repository")
+        validate_configuration(automation_config_path, fragment_directories, "owner/repository")
 
         assert not (automation_config_path.parent / "automations.schema.json").exists()
 

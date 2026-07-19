@@ -56,7 +56,7 @@ def render_target(
                 "",
                 f"# Skill: {skill}",
                 "",
-                read_fragment(loaded.root, "skills", skill),
+                read_fragment(loaded.fragment_directories.skills, "skill", skill),
             ]
         )
 
@@ -65,7 +65,7 @@ def render_target(
             "",
             "# Prompt",
             "",
-            read_fragment(loaded.root, "prompts", target.automation.prompt),
+            read_fragment(loaded.fragment_directories.prompts, "prompt", target.automation.prompt),
         ]
     )
 

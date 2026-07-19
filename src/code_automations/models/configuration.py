@@ -14,6 +14,7 @@ __all__: Final[tuple[str, ...]] = (
     "AutomationConfig",
     "AutomationTarget",
     "AutomationsConfig",
+    "FragmentDirectories",
     "LoadedConfiguration",
     "ProjectConfig",
     "REPOSITORY_PATTERN",
@@ -257,12 +258,22 @@ class AutomationsConfig(BaseModel):
         return self
 
 
+class FragmentDirectories(BaseModel):
+    """Locate prompt and skill Markdown files."""
+
+    model_config = ConfigDict(frozen=True)
+
+    prompts: Path
+    skills: Path
+
+
 class LoadedConfiguration(BaseModel):
-    """Pair a validated configuration with its repository root."""
+    """Pair a validated configuration with its repository resources."""
 
     model_config = ConfigDict(frozen=True)
 
     root: Path
+    fragment_directories: FragmentDirectories
     config: AutomationsConfig
 
 

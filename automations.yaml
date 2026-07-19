@@ -6,6 +6,6 @@ projects:
         branch: main
     automations:
       hello-world:
-        prompt: examples/hello-world
+        prompt: hello-world
         skills:
-          - examples/concise
+          - concise

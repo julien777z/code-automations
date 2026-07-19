@@ -27,6 +27,8 @@ class CliArguments(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     config: Path
+    prompts_directory: Path
+    skills_directory: Path
     command: Literal["validate", "render", "due", "dispatch"]
     automation: str | None = None
     scheduled: bool = False

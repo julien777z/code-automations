@@ -9,13 +9,14 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from code_automations.errors import ConfigurationError
 from code_automations.models.configuration import (
     AutomationsConfig,
+    FragmentDirectories,
     LoadedConfiguration,
 )
 from code_automations.targets import has_self_repository, resolve_self_repository, resolve_targets
 
 logger = logging.getLogger(__name__)
 
-type FragmentDirectory = Literal["prompts", "skills"]
+type FragmentType = Literal["prompt", "skill"]
 
 __all__: Final[tuple[str, ...]] = (
     "load_configuration",
@@ -24,30 +25,26 @@ __all__: Final[tuple[str, ...]] = (
 )
 
 
-def read_fragment(root: Path, directory: FragmentDirectory, reference: str) -> str:
+def read_fragment(directory: Path, fragment_type: FragmentType, reference: str) -> str:
     """Read one validated Markdown instruction fragment."""
 
-    repository_root = root.resolve()
-    base = (root / directory).resolve()
-
-    if not base.is_relative_to(repository_root):
-        raise ConfigurationError(f"{directory} directory escapes the repository root")
+    base = directory.resolve()
 
     candidate = (base / f"{reference}.md").resolve()
 
     if not candidate.is_relative_to(base):
-        raise ConfigurationError(f"{directory} reference escapes its directory: {reference}")
+        raise ConfigurationError(f"{fragment_type} reference escapes its directory: {reference}")
 
     if not candidate.is_file():
-        raise ConfigurationError(f"missing or non-regular {directory} file: {reference}")
+        raise ConfigurationError(f"missing or non-regular {fragment_type} file: {reference}")
 
     try:
         content = candidate.read_text(encoding="utf-8")
     except UnicodeDecodeError as error:
-        raise ConfigurationError(f"{directory} file is not UTF-8: {reference}") from error
+        raise ConfigurationError(f"{fragment_type} file is not UTF-8: {reference}") from error
 
     if not content.strip():
-        raise ConfigurationError(f"{directory} file is empty: {reference}")
+        raise ConfigurationError(f"{fragment_type} file is empty: {reference}")
 
     return content.strip()
 
@@ -75,7 +72,7 @@ def validate_yaml_keys(node: Node | None, path: tuple[str, ...] = ()) -> None:
             validate_yaml_keys(value_node, path)
 
 
-def load_configuration(path: Path) -> LoadedConfiguration:
+def load_configuration(path: Path, fragment_directories: FragmentDirectories) -> LoadedConfiguration:
     """Load and semantically validate an automation YAML file."""
 
     try:
@@ -89,21 +86,41 @@ def load_configuration(path: Path) -> LoadedConfiguration:
     except ValidationError as error:
         raise ConfigurationError(str(error)) from error
 
-    loaded = LoadedConfiguration(root=path.resolve().parent, config=config)
+    resolved_directories = FragmentDirectories(
+        prompts=fragment_directories.prompts.resolve(),
+        skills=fragment_directories.skills.resolve(),
+    )
+
+    for fragment_type, directory in (
+        ("prompt", resolved_directories.prompts),
+        ("skill", resolved_directories.skills),
+    ):
+        if not directory.is_dir():
+            raise ConfigurationError(f"{fragment_type} directory does not exist: {directory}")
+
+    loaded = LoadedConfiguration(
+        root=path.resolve().parent,
+        fragment_directories=resolved_directories,
+        config=config,
+    )
 
     for project in config.projects.values():
         for automation in project.automations.values():
-            read_fragment(loaded.root, "prompts", automation.prompt)
+            read_fragment(loaded.fragment_directories.prompts, "prompt", automation.prompt)
             for skill in automation.skills:
-                read_fragment(loaded.root, "skills", skill)
+                read_fragment(loaded.fragment_directories.skills, "skill", skill)
 
     return loaded
 
 
-def validate_configuration(config_path: Path, github_repository: str | None = None) -> None:
+def validate_configuration(
+    config_path: Path,
+    fragment_directories: FragmentDirectories,
+    github_repository: str | None = None,
+) -> None:
     """Validate one automation configuration and its referenced resources."""
 
-    loaded = load_configuration(config_path)
+    loaded = load_configuration(config_path, fragment_directories)
     self_repository = (
         resolve_self_repository(loaded.root, github_repository) if has_self_repository(loaded) else None
     )
