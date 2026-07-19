@@ -5,10 +5,6 @@ description: Review the complete pull-request diff for the current branch with h
 
 # Code Review
 
-## Dependencies
-
-- `code-review-loop` — provides the iterative review-and-fix workflow that invokes this review pass.
-
 Perform one high-signal review pass over the complete selected review target. Establish the PR when needed, but do not modify code to fix findings. In manual runs, report only in the current chat. A preceding CI adapter may explicitly adapt PR discovery, review orchestration, and output mechanics; the workflow runner, never this skill, owns GitHub review posting.
 
 **Scope — review only the selected review target.** Every finding must anchor to an added or removed line in that target's diff. Do not report pre-existing issues on untouched lines, even in modified files.
@@ -49,6 +45,8 @@ Use the platform's pull-request tools when available, with `gh` as a fallback. G
 ## Step 3 — Run review lenses
 
 Launch these reviewers in parallel when subagents are available, or run them sequentially otherwise. Each reviewer must inspect only lines changed by the selected target and return a flat list with path, line, diff side (`RIGHT` for added/current or `LEFT` for removed/base), severity candidate, concrete trigger, and reasoning.
+
+If the user provides a new task while reviewers are running, interrupt every reviewer immediately and discard their results before starting that task. Restart the review only after the task is complete on its new baseline.
 
 1. **Rules** — check applicable repository rules against surrounding conventions.
 2. **Bugs** — find high-confidence correctness, data-loss, security, performance, or UX defects.
