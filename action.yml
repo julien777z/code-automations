@@ -9,8 +9,7 @@ branding:
 inputs:
   automations-file-path:
     description: Path to the automation configuration relative to the checked-out repository.
-    required: false
-    default: automations.yaml
+    required: true
   prompts-directory-path:
     description: Path to the prompt Markdown directory relative to the checked-out repository.
     required: true

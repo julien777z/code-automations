@@ -24,7 +24,8 @@ class TestAction:
             "run-automation",
             "skills-directory-path",
         }
-        assert inputs["automations-file-path"]["default"] == "automations.yaml"
+        assert inputs["automations-file-path"]["required"] is True
+        assert "default" not in inputs["automations-file-path"]
         assert inputs["prompts-directory-path"]["required"] is True
         assert "default" not in inputs["prompts-directory-path"]
         assert inputs["skills-directory-path"]["required"] is True

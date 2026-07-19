@@ -105,7 +105,7 @@ jobs:
 
 | Input | Default | Purpose |
 | --- | --- | --- |
-| `automations-file-path` | `automations.yaml` | Locates the automation configuration in the checked-out repository. |
+| `automations-file-path` | Required | Locates the automation configuration in the checked-out repository. |
 | `prompts-directory-path` | Required | Locates prompt Markdown files in the checked-out repository. |
 | `skills-directory-path` | Required | Locates skill Markdown files in the checked-out repository. |
 | `mode` | `dispatch` | Selects configuration validation or automation dispatch. |
