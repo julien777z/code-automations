@@ -43,7 +43,7 @@ class TestConfiguration:
             "owner/secondary",
         ]
         assert [repository.branch for repository in target.repositories] == ["main", "develop"]
-        assert first.index("# Skill: concise") < first.index("# Prompt")
+        assert first.index("# Skill: example-skill") < first.index("# Prompt")
         assert "owner/secondary: owner/secondary (base branch: develop)" in first
 
     def test_repository_branches_default_independently(
@@ -173,7 +173,7 @@ class TestConfiguration:
     ) -> None:
         """Reject a missing prompt or skill file."""
 
-        (fragment_directories.skills / "concise.md").unlink()
+        (fragment_directories.skills / "example-skill.md").unlink()
 
         with pytest.raises(ConfigurationError, match="missing or non-regular"):
             load_configuration(automation_config_path, fragment_directories)
@@ -209,7 +209,7 @@ class TestConfiguration:
         configuration = automation_config_path.read_text(encoding="utf-8")
         configuration = configuration.replace("prompt: hello-world", "prompt: hello-world.md")
         automation_config_path.write_text(
-            configuration.replace("- concise", "- concise.md"),
+            configuration.replace("- example-skill", "- example-skill.md"),
             encoding="utf-8",
         )
 

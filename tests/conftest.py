@@ -21,7 +21,7 @@ def automation_config_path(tmp_path: Path, fragment_directories: FragmentDirecto
     """Provide a valid automation configuration file."""
 
     prompt = fragment_directories.prompts / "hello-world.md"
-    skill = fragment_directories.skills / "concise.md"
+    skill = fragment_directories.skills / "example-skill.md"
     prompt.parent.mkdir(parents=True)
     skill.parent.mkdir(parents=True)
 
@@ -42,7 +42,7 @@ projects:
       hello-world:
         prompt: hello-world
         skills:
-          - concise
+          - example-skill
 """,
         encoding="utf-8",
     )

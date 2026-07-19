@@ -8,4 +8,4 @@ projects:
       hello-world:
         prompt: hello-world
         skills:
-          - concise
+          - example-skill

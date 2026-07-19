@@ -22,8 +22,7 @@ gh secret set AUTOMATION_GITHUB_TOKEN
 
 `AUTOMATION_GITHUB_TOKEN` must be a GitHub App installation token or fine-grained personal access token
 with access to the consumer repository and every configured target repository. It needs contents and pull
-request write permission. `GITHUB_TOKEN` is limited to the repository containing the workflow, so it cannot access
-configured sibling repositories.
+request write permission.
 
 ## Example
 
@@ -40,7 +39,7 @@ projects:
       hello-world:
         prompt: hello-world
         skills:
-          - concise
+          - example-skill
 ```
 
 Prompt and skill references may include `.md` or omit it.
