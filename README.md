@@ -107,8 +107,7 @@ jobs:
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
 ```
 
-An empty `run-automation` dispatches every due scheduled automation and persists successful occurrences on the
-consumer repository's `automation-state` branch.
+An empty `run-automation` dispatches every due scheduled automation and preserves successful scheduling state.
 
 ## Local Development
 
