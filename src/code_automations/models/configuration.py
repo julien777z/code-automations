@@ -38,8 +38,8 @@ CRON_FIELD_BOUNDS: Final[tuple[tuple[int, int], ...]] = ((0, 59), (0, 23), (1, 3
 def validate_reference(value: str) -> str:
     """Validate a prompt or skill reference."""
 
-    if not value or value.endswith(".md") or "\\" in value or "//" in value or value.endswith("/"):
-        raise ValueError("references must omit .md and use forward-slash relative paths")
+    if not value or "\\" in value or "//" in value or value.endswith("/"):
+        raise ValueError("references must use forward-slash relative paths")
 
     path = PurePosixPath(value)
 

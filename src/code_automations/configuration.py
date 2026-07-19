@@ -30,7 +30,8 @@ def read_fragment(directory: Path, fragment_type: FragmentType, reference: str) 
 
     base = directory.resolve()
 
-    candidate = (base / f"{reference}.md").resolve()
+    filename = reference if reference.endswith(".md") else f"{reference}.md"
+    candidate = (base / filename).resolve()
 
     if not candidate.is_relative_to(base):
         raise ConfigurationError(f"{fragment_type} reference escapes its directory: {reference}")

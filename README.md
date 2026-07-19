@@ -37,14 +37,12 @@ projects:
 
 Project keys are arbitrary. Repository mapping order defines the primary repository; each following repository
 is writable by the same automation session. `self` resolves to the repository running the workflow. A repository
-branch defaults to `main`. Prompt and skill references omit `.md` and resolve independently against the directories
-passed to the action. For example, `prompt: foo/bar` with `prompts-directory-path: example/prompts` loads
+branch defaults to `main`. For example, `prompt: foo/bar` with `prompts-directory-path: example/prompts` loads
 `example/prompts/foo/bar.md`. Add `schedule.cron` and `schedule.timezone` for scheduled runs; other automations
 are manual-only.
 
 Each run is a single attempt. It creates the same `automation/<name>/...` branch in every changed repository and
-opens a separate pull request targeting each configured base branch. GitHub rejects an existing remote branch when
-the workflow pushes it. Partial publication remains for manual cleanup after a failure.
+opens a separate pull request targeting each configured base branch.
 
 Automation execution runs in a hardened Docker container with access only to the automation workspace and its
 authentication directory. The GitHub token remains on the runner, where cloning and publication occur. GitHub-hosted Ubuntu

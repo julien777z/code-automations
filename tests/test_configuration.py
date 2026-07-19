@@ -180,7 +180,7 @@ class TestConfiguration:
 
     @pytest.mark.parametrize(
         "reference",
-        ["../secret", "foo/../secret", "/secret", "foo\\bar", "foo/bar.md", "foo//bar"],
+        ["../secret", "foo/../secret", "/secret", "foo\\bar", "foo//bar"],
     )
     def test_unsafe_references_are_rejected(
         self,
@@ -188,7 +188,7 @@ class TestConfiguration:
         fragment_directories: FragmentDirectories,
         reference: str,
     ) -> None:
-        """Reject traversal, absolute, backslash, suffix, and empty path segments."""
+        """Reject traversal, absolute, backslash, and empty path segments."""
 
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
@@ -198,6 +198,28 @@ class TestConfiguration:
 
         with pytest.raises(ConfigurationError):
             load_configuration(automation_config_path, fragment_directories)
+
+    def test_markdown_suffix_is_optional(
+        self,
+        automation_config_path: Path,
+        fragment_directories: FragmentDirectories,
+    ) -> None:
+        """Load prompt and skill references with explicit Markdown suffixes."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        configuration = configuration.replace("prompt: hello-world", "prompt: hello-world.md")
+        automation_config_path.write_text(
+            configuration.replace("- concise", "- concise.md"),
+            encoding="utf-8",
+        )
+
+        loaded = load_configuration(automation_config_path, fragment_directories)
+        target = find_target(loaded, "owner/repository", "hello-world")
+
+        rendered = render_target(loaded, target)
+
+        assert "Say hello." in rendered
+        assert "Be concise." in rendered
 
     def test_symlink_escape_is_rejected(
         self,
