@@ -2,6 +2,14 @@
 
 Run repository-owned, multi-repository automations from one reusable GitHub Action.
 
+## Features
+
+- Consumer-owned automation configuration, prompts, and skills
+- Configuration validation, manual runs, and scheduled runs
+- Multi-repository changes and pull request creation
+- Isolated automation execution in Docker
+- Shared runtime and dependency management
+
 ## Setup
 
 Keep the automation configuration and its prompt and skill directories in the consumer repository. The included
@@ -35,18 +43,7 @@ projects:
           - concise
 ```
 
-Project keys are arbitrary. Repository mapping order defines the primary repository; each following repository
-is writable by the same automation session. `self` resolves to the repository running the workflow. A repository
-branch defaults to `main`. For example, `prompt: foo/bar` with `prompts-directory-path: example/prompts` loads
-`example/prompts/foo/bar.md`. Add `schedule.cron` and `schedule.timezone` for scheduled runs; other automations
-are manual-only.
-
-Each run is a single attempt. It creates the same `automation/<name>/...` branch in every changed repository and
-opens a separate pull request targeting each configured base branch.
-
-Automation execution runs in a hardened Docker container with access only to the automation workspace and its
-authentication directory. The GitHub token remains on the runner, where cloning and publication occur. GitHub-hosted Ubuntu
-runners include Docker; self-hosted runners must provide a compatible Docker daemon.
+Prompt and skill references may include `.md` or omit it.
 
 ## Validate Configuration
 
@@ -111,12 +108,8 @@ jobs:
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
 ```
 
-The provider authentication input required by the current implementation is omitted from this provider-agnostic
-example.
-
 An empty `run-automation` dispatches every due scheduled automation and persists successful occurrences on the
-consumer repository's `automation-state` branch. Scheduled workflows require `contents: write` and a full
-checkout.
+consumer repository's `automation-state` branch.
 
 ## Local Development
 
