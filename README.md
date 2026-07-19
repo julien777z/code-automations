@@ -76,8 +76,8 @@ on:
     - cron: "17 * * * *" # Every hour at minute 17
   workflow_dispatch:
     inputs:
-      run-automation:
-        description: Globally unique automation name
+      automation_name:
+        description: Automation name
         required: false
         type: string
 
@@ -96,7 +96,7 @@ jobs:
           automations-file-path: automations.yaml
           prompts-directory-path: prompts
           skills-directory-path: skills
-          run-automation: ${{ inputs.run-automation }}
+          run-automation: ${{ inputs.automation_name }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
 ```
