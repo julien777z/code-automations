@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from code_automations.cli import run
+from code_automations.__main__ import run
 from code_automations.configuration import (
     load_configuration,
     read_fragment,
