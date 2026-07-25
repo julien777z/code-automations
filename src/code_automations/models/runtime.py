@@ -1,66 +1,61 @@
 import logging
+from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
-__all__: Final[tuple[str, ...]] = ("ActionsRuntime", "DispatchRuntime", "resolve_dispatch_runtime")
+__all__: Final[tuple[str, ...]] = (
+    "ActionsContext",
+    "CliArguments",
+    "CloudTask",
+    "DueAutomation",
+)
 
 
-class ActionsRuntime(BaseSettings):
-    """Read GitHub Actions runtime settings."""
+class ActionsContext(BaseSettings):
+    """Read GitHub Actions context used by the command-line interface."""
 
     model_config = SettingsConfigDict(extra="ignore")
 
     github_repository: str | None = Field(default=None, validation_alias="GITHUB_REPOSITORY")
-    github_step_summary: str | None = Field(default=None, validation_alias="GITHUB_STEP_SUMMARY")
-    github_run_id: str | None = Field(default=None, validation_alias="GITHUB_RUN_ID")
-    github_run_attempt: str | None = Field(default=None, validation_alias="GITHUB_RUN_ATTEMPT")
-    github_token: str | None = Field(default=None, validation_alias="AUTOMATION_GITHUB_TOKEN")
-    command_path: str | None = Field(default=None, validation_alias="AUTOMATION_COMMAND_PATH")
-    github_home: Path | None = Field(default=None, validation_alias="AUTOMATION_GITHUB_HOME")
-    codex_home: Path | None = Field(default=None, validation_alias="AUTOMATION_CODEX_HOME")
-    runner_image: str | None = Field(default=None, validation_alias="AUTOMATION_RUNNER_IMAGE")
-    runner_user: str | None = Field(default=None, validation_alias="AUTOMATION_RUNNER_USER")
-    runner_temp: Path | None = Field(default=None, validation_alias="RUNNER_TEMP")
+    github_step_summary: Path | None = Field(default=None, validation_alias="GITHUB_STEP_SUMMARY")
 
 
-class DispatchRuntime(BaseModel):
-    """Provide the credentials and directories required for dispatch."""
+class CliArguments(BaseModel):
+    """Validate parsed command-line arguments."""
 
-    model_config = ConfigDict(frozen=True, strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True)
 
-    github_token: str
-    command_path: str
-    github_home: Path
-    codex_home: Path
-    runner_image: str
-    runner_user: str
-    runner_temp: Path
-    github_run_id: str
-    github_run_attempt: str
+    config: Path
+    prompts_directory: Path
+    skills_directory: Path
+    command: Literal["validate", "render", "due", "dispatch"]
+    automation: str | None = None
+    scheduled: bool = False
+    now: str | None = None
+    dispatcher_schedule: str | None = None
+    environment: str | None = None
+    branch: str | None = None
+    task_timeout_minutes: int = 150
 
 
-def resolve_dispatch_runtime(runtime: ActionsRuntime) -> DispatchRuntime:
-    """Require the GitHub Actions values needed to run an automation."""
+class CloudTask(BaseModel):
+    """Identify one submitted Codex Cloud task."""
 
-    required = (
-        ("github_token", runtime.github_token),
-        ("command_path", runtime.command_path),
-        ("github_home", runtime.github_home),
-        ("codex_home", runtime.codex_home),
-        ("runner_image", runtime.runner_image),
-        ("runner_user", runtime.runner_user),
-        ("runner_temp", runtime.runner_temp),
-        ("github_run_id", runtime.github_run_id),
-        ("github_run_attempt", runtime.github_run_attempt),
-    )
-    missing = [name for name, value in required if value is None]
+    model_config = ConfigDict(frozen=True)
 
-    if missing:
-        raise ValueError(f"dispatch requires GitHub Actions values: {', '.join(missing)}")
+    task_id: str
+    url: HttpUrl
 
-    return DispatchRuntime.model_validate(runtime.model_dump(exclude_none=True))
+
+class DueAutomation(BaseModel):
+    """Describe one due scheduled automation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    scheduled_for: datetime

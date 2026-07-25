@@ -6,61 +6,47 @@ import yaml
 class TestAction:
     """Test the reusable GitHub Action contract."""
 
-    def test_composite_action_exposes_the_consumer_inputs(self) -> None:
-        """Keep the public inputs focused on configuration and dispatch."""
+    def test_composite_action_launches_codex_cloud(self) -> None:
+        """Expose only the configuration and Cloud dispatch inputs."""
 
         action_path = Path(__file__).parents[1] / "action.yml"
         action = yaml.safe_load(action_path.read_text(encoding="utf-8"))
         inputs = action["inputs"]
+        rendered = action_path.read_text(encoding="utf-8")
 
         assert action["runs"]["using"] == "composite"
-
         assert set(inputs) == {
-            "codex-auth-json",
             "automations-file-path",
-            "github-token",
+            "codex-auth-json",
+            "codex-environment-id",
             "mode",
             "prompts-directory-path",
             "run-automation-name",
             "skills-directory-path",
         }
-        assert inputs["automations-file-path"]["required"] is True
-        assert "default" not in inputs["automations-file-path"]
-        assert inputs["prompts-directory-path"]["required"] is True
-        assert "default" not in inputs["prompts-directory-path"]
-        assert inputs["skills-directory-path"]["required"] is True
-        assert "default" not in inputs["skills-directory-path"]
-        assert inputs["codex-auth-json"]["required"] is True
-        assert "default" not in inputs["codex-auth-json"]
-        assert inputs["mode"]["default"] == "dispatch"
-        assert "GITHUB_EVENT_NAME" in action["runs"]["steps"][0]["env"]
-        assert "schedule|workflow_dispatch" in action["runs"]["steps"][0]["run"]
-        assert (
-            "automation resources must resolve inside the checked-out repository"
-            in action["runs"]["steps"][0]["run"]
-        )
+        assert inputs["codex-environment-id"]["required"] is True
+        assert "github-token" not in inputs
+        assert "docker build" not in rendered
+        assert "npm ci --omit=dev --prefix" in rendered
+        assert "codex cloud" not in rendered
+        assert '--environment "$CODEX_ENVIRONMENT_ID"' in rendered
+        assert '--branch "$GITHUB_REF_NAME"' in rendered
+        assert "scheduled dispatch is only allowed from the default branch" in rendered
+        assert "workflow_dispatch) ;;" in rendered
 
-        rendered = action_path.read_text(encoding="utf-8")
+    def test_release_workflow_publishes_v0_alpha_tags(self) -> None:
+        """Publish immutable patch tags and update the moving v0 tag."""
 
-        assert "actions/setup-node" not in rendered
-        assert "npm ci --prefix" not in rendered
-        assert "docker build" in rendered
-        assert "AUTOMATION_RUNNER_IMAGE" in rendered
-        assert "AUTOMATION_RUNNER_USER" in rendered
-        assert '--prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"' in rendered
-        assert '--skills-directory "$GITHUB_WORKSPACE/$SKILLS_DIRECTORY_PATH"' in rendered
-        assert ".github/actionlint" not in rendered
-        assert "state.json" not in rendered
-        assert "automation-state" not in rendered
-        assert "--state" not in rendered
+        workflow_path = Path(__file__).parents[1] / ".github/workflows/publish-release.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
 
-        dockerfile = (action_path.parent / "docker/Dockerfile").read_text(encoding="utf-8")
+        assert '"v0.0.*"' in workflow
+        assert "git tag -f v0" in workflow
+        assert "git push origin -f v0" in workflow
+        assert "workflow_dispatch" not in workflow
 
-        assert "COPY package.json package-lock.json" in dockerfile
-        assert "npm ci --omit=dev" in dockerfile
-
-    def test_documented_dispatch_disables_checkout_credentials(self) -> None:
-        """Keep the consumer workflow free of checkout credentials during agent execution."""
+    def test_documentation_disables_checkout_credentials(self) -> None:
+        """Keep consumer checkout credentials disabled."""
 
         readme_path = Path(__file__).parents[1] / "README.md"
 

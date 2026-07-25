@@ -7,8 +7,8 @@ Validate and run repository-owned automations across one or more GitHub reposito
 - Repository-owned configuration, prompts, and skills
 - Configuration validation before execution
 - Manual and scheduled automation runs
-- Multi-repository changes and pull request creation
-- Docker-isolated execution
+- One coordinating Codex Cloud task across multiple repositories
+- Agent-owned pull request creation, CI monitoring, and optional merging
 - Managed runtime dependencies
 
 ## Examples
@@ -36,6 +36,11 @@ projects:
         schedule:
           cron: "0 9 * * 1" # Every Monday at 09:00 UTC
           timezone: UTC
+        merge:
+          workflows:
+            - Run Tests
+          method: squash
+          timeout_minutes: 120
 ```
 
 > Note: Prompt and skill references may include `.md` or omit it.
@@ -62,6 +67,7 @@ jobs:
         with:
           mode: validate
           automations-file-path: automations.yaml
+          codex-environment-id: ${{ vars.CODEX_ENVIRONMENT_ID }}
           prompts-directory-path: prompts
           skills-directory-path: skills
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
@@ -101,8 +107,12 @@ jobs:
           skills-directory-path: skills
           run-automation-name: ${{ inputs.automation_name }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
-          github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
+          codex-environment-id: ${{ vars.CODEX_ENVIRONMENT_ID }}
 ```
+
+The Cloud environment must prepare each configured repository as a sibling directory named after
+the repository, such as `../related-repository`. Configure Git and `gh` authentication inside that
+environment when an automation should publish pull requests.
 
 ## Modes
 
@@ -121,7 +131,12 @@ jobs:
 | `mode` | `dispatch` | Selects the `validate` or `dispatch` behavior. |
 | `run-automation-name` | `""` | Selects a manual automation; an empty value evaluates configured schedules. |
 | `codex-auth-json` | Required | Provides the authentication document required for dispatch. |
-| `github-token` | `""` | Provides repository access required for dispatch. |
+| `codex-environment-id` | Required | Selects the coordinating Codex Cloud environment. |
+
+## Alpha Releases
+
+Alpha releases use immutable `v0.0.N` tags. The moving `v0` tag points to the latest alpha. A
+release may be tagged from the active WIP branch before its pull request is merged.
 
 ## Local Development
 

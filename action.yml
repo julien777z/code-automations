@@ -27,10 +27,9 @@ inputs:
   codex-auth-json:
     description: Complete Codex authentication document required to run automations.
     required: true
-  github-token:
-    description: GitHub token with access to every configured repository.
-    required: false
-    default: ""
+  codex-environment-id:
+    description: Codex Cloud environment used for coordinating configured repositories.
+    required: true
 
 runs:
   using: composite
@@ -43,7 +42,7 @@ runs:
         PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
         SKILLS_DIRECTORY_PATH: ${{ inputs.skills-directory-path }}
         CODEX_AUTH_JSON: ${{ inputs.codex-auth-json }}
-        AUTOMATION_GITHUB_TOKEN: ${{ inputs.github-token }}
+        CODEX_ENVIRONMENT_ID: ${{ inputs.codex-environment-id }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
         GITHUB_REF: ${{ github.ref }}
@@ -54,7 +53,13 @@ runs:
           validate) ;;
           dispatch)
             case "$GITHUB_EVENT_NAME" in
-              schedule|workflow_dispatch) ;;
+              schedule)
+                test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" || {
+                  echo "scheduled dispatch is only allowed from the default branch" >&2
+                  exit 1
+                }
+                ;;
+              workflow_dispatch) ;;
               *)
                 echo "dispatch is only allowed for scheduled and manual workflow runs" >&2
                 exit 1
@@ -64,12 +69,8 @@ runs:
               echo "codex-auth-json is required in dispatch mode" >&2
               exit 1
             }
-            test -n "$AUTOMATION_GITHUB_TOKEN" || {
-              echo "github-token is required in dispatch mode" >&2
-              exit 1
-            }
-            test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" || {
-              echo "dispatch is only allowed from the default branch" >&2
+            test -n "$CODEX_ENVIRONMENT_ID" || {
+              echo "codex-environment-id is required in dispatch mode" >&2
               exit 1
             }
             ;;
@@ -112,19 +113,16 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version-file: ${{ github.action_path }}/.python-version
+    - name: Set Up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: ${{ github.action_path }}/.nvmrc
     - name: Install Action Dependencies
       shell: bash
       run: |
         python -m pip install --disable-pip-version-check poetry==2.2.0
         poetry --directory "$GITHUB_ACTION_PATH" install --only main
-    - name: Build Automation Runner
-      if: inputs.mode == 'dispatch'
-      shell: bash
-      run: |
-        image="code-automations-runner:$GITHUB_RUN_ID"
-        docker build --file "$GITHUB_ACTION_PATH/docker/Dockerfile" --tag "$image" "$GITHUB_ACTION_PATH"
-        printf 'AUTOMATION_RUNNER_IMAGE=%s\n' "$image" >> "$GITHUB_ENV"
-        printf 'AUTOMATION_RUNNER_USER=%s:%s\n' "$(id -u)" "$(id -g)" >> "$GITHUB_ENV"
+        npm ci --omit=dev --prefix "$GITHUB_ACTION_PATH"
     - name: Validate Automation File
       shell: bash
       env:
@@ -145,40 +143,43 @@ runs:
         CODEX_AUTH_JSON: ${{ inputs.codex-auth-json }}
       run: |
         authentication_home="$RUNNER_TEMP/automation-authentication"
-        github_home="$RUNNER_TEMP/automation-github-home"
         install -d -m 700 "$authentication_home"
-        install -d -m 700 "$github_home"
         printf '%s' "$CODEX_AUTH_JSON" > "$authentication_home/auth.json"
         chmod 600 "$authentication_home/auth.json"
         unset CODEX_AUTH_JSON
         printf 'home=%s\n' "$authentication_home" >> "$GITHUB_OUTPUT"
-        printf 'github-home=%s\n' "$github_home" >> "$GITHUB_OUTPUT"
     - name: Run Automations
       if: inputs.mode == 'dispatch'
       shell: bash
       env:
-        AUTOMATION_GITHUB_TOKEN: ${{ inputs.github-token }}
-        AUTOMATION_CODEX_HOME: ${{ steps.authentication.outputs.home }}
-        AUTOMATION_GITHUB_HOME: ${{ steps.authentication.outputs.github-home }}
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
+        CODEX_ENVIRONMENT_ID: ${{ inputs.codex-environment-id }}
+        CODEX_HOME: ${{ steps.authentication.outputs.home }}
+        GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
         PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
         SKILLS_DIRECTORY_PATH: ${{ inputs.skills-directory-path }}
         RUN_AUTOMATION: ${{ inputs.run-automation-name }}
       run: |
-        export AUTOMATION_COMMAND_PATH="$PATH"
+        export PATH="$GITHUB_ACTION_PATH/node_modules/.bin:$PATH"
         automation_command=(
           poetry --directory "$GITHUB_ACTION_PATH" run code-automations
           --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH"
           --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
           --skills-directory "$GITHUB_WORKSPACE/$SKILLS_DIRECTORY_PATH"
           dispatch
+          --environment "$CODEX_ENVIRONMENT_ID"
+          --branch "$GITHUB_REF_NAME"
         )
         if [ -n "$RUN_AUTOMATION" ]; then
           "${automation_command[@]}" --automation "$RUN_AUTOMATION"
         else
-          "${automation_command[@]}" --scheduled
+          schedule_arguments=()
+          if [ -n "$GITHUB_EVENT_SCHEDULE" ]; then
+            schedule_arguments=(--dispatcher-schedule "$GITHUB_EVENT_SCHEDULE")
+          fi
+          "${automation_command[@]}" --scheduled "${schedule_arguments[@]}"
         fi
     - name: Remove Automation Authentication
       if: always() && inputs.mode == 'dispatch'
       shell: bash
-      run: rm -rf "${{ steps.authentication.outputs.home }}" "${{ steps.authentication.outputs.github-home }}"
+      run: rm -rf "${{ steps.authentication.outputs.home }}"

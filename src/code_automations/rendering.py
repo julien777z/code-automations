@@ -1,10 +1,8 @@
 import logging
-from pathlib import Path
 from typing import Final
 
 from code_automations.configuration import read_fragment
 from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
-from code_automations.models.execution import RepositoryWorkspace
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +12,8 @@ __all__: Final[tuple[str, ...]] = ("render_target",)
 def render_target(
     loaded: LoadedConfiguration,
     target: AutomationTarget,
-    repositories: list[RepositoryWorkspace] | None = None,
 ) -> str:
-    """Render automation metadata, ordered skills, and prompt."""
+    """Render one self-publishing Cloud automation prompt."""
 
     sections = [
         "# Automation metadata",
@@ -26,27 +23,26 @@ def render_target(
         "- Repositories:",
     ]
 
-    paths = repositories or [
-        RepositoryWorkspace(
-            repository=repository.repository,
-            branch=repository.branch,
-            path=Path(repository.repository),
-            starting_commit="unavailable",
-        )
-        for repository in target.repositories
-    ]
-
-    for repository in paths:
-        sections.append(f"  - {repository.repository}: {repository.path} (base branch: {repository.branch})")
+    for repository in target.repositories:
+        directory = repository.repository.rsplit("/", maxsplit=1)[1]
+        sections.append(f"  - {repository.repository}: ../{directory} (base branch: {repository.branch})")
 
     sections.extend(
         [
             "",
             "# Execution contract",
             "",
-            "Inspect every repository that is relevant to the task and modify only the repositories needed.",
-            "Do not create commits, push branches, create pull requests, or modify automation configuration.",
-            "Return the required structured result with PR metadata only for repositories that changed.",
+            "Work directly in the prepared repository paths above.",
+            "Do not modify the automation repository that launched this task.",
+            "Git and GitHub CLI authentication are already configured for the authorized repositories.",
+            "Never display, copy, or persist authentication credentials in repository content or logs.",
+            "Inspect every configured repository and modify only repositories that need "
+            "the requested change.",
+            f"Use the branch automation/{target.name} in each changed repository.",
+            "Reuse its open pull request when one exists and its history belongs to this automation.",
+            "Create the branch from the configured base branch when no safe automation branch exists.",
+            "Never force-push or overwrite unrelated branch history.",
+            "Run the repository-native checks relevant to the changes before publication.",
         ]
     )
 
@@ -66,7 +62,41 @@ def render_target(
             "# Prompt",
             "",
             read_fragment(loaded.fragment_directories.prompts, "prompt", target.automation.prompt),
+            "",
+            "# Publication contract",
+            "",
+            "For each changed repository, commit the complete change, push the automation branch, "
+            "and open or update one pull request.",
+            "Use a concise conventional-commit title and explain the dependency changes "
+            "and validation in the body.",
+            "Skip publication for repositories with no changes.",
+            "Treat each repository independently so one repository failure does not block "
+            "a successful repository.",
         ]
     )
+
+    merge = target.automation.merge
+
+    if merge is None:
+        sections.extend(
+            [
+                "Do not merge pull requests automatically.",
+            ]
+        )
+    else:
+        workflows = ", ".join(f"`{workflow}`" for workflow in merge.workflows)
+        sections.extend(
+            [
+                f"Only these exact GitHub Actions workflows gate merging: {workflows}.",
+                "Ignore every other workflow and check conclusion when deciding whether to merge.",
+                "For each pull request, wait for every configured workflow to run against "
+                "its exact head SHA.",
+                f"Wait up to {merge.timeout_minutes} minutes for the configured workflows.",
+                "If every configured workflow succeeds, squash-merge the pull request and delete its branch.",
+                "If a configured workflow is missing, fails, is cancelled, or times out, "
+                "leave that pull request open.",
+                "Report every created, updated, merged, or blocked pull request in the final response.",
+            ]
+        )
 
     return "\n".join(sections) + "\n"

@@ -16,6 +16,7 @@ __all__: Final[tuple[str, ...]] = (
     "AutomationsConfig",
     "FragmentDirectories",
     "LoadedConfiguration",
+    "MergeConfig",
     "ProjectConfig",
     "REPOSITORY_PATTERN",
     "RepositoryConfig",
@@ -152,6 +153,31 @@ class ScheduleConfig(BaseModel):
         return value
 
 
+class MergeConfig(BaseModel):
+    """Define automatic pull request merge behavior."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    workflows: list[str] = Field(min_length=1)
+    method: Literal["squash"] = "squash"
+    timeout_minutes: int = Field(default=120, ge=1, le=180)
+
+    @field_validator("workflows")
+    @classmethod
+    def validate_workflows(cls, value: list[str]) -> list[str]:
+        """Require unique nonblank workflow names."""
+
+        normalized = [workflow.strip() for workflow in value]
+
+        if any(not workflow for workflow in normalized):
+            raise ValueError("merge workflow names must not be blank")
+
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("merge workflow names must be unique")
+
+        return normalized
+
+
 class AutomationConfig(BaseModel):
     """Define one automation."""
 
@@ -160,6 +186,7 @@ class AutomationConfig(BaseModel):
     prompt: str
     skills: list[str] = Field(default_factory=list)
     schedule: ScheduleConfig | None = None
+    merge: MergeConfig | None = None
     enabled: bool = True
 
     @field_validator("prompt")

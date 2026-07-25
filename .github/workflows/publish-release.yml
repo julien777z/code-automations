@@ -1,25 +1,20 @@
 name: Publish Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version_increment:
-        description: Version increment type
-        required: true
-        type: choice
-        default: patch
-        options:
-          - patch
-          - minor
-          - major
+  push:
+    tags:
+      - "v0.0.*"
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
   publish:
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    name: Tag and release
+    name: Publish alpha release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -27,41 +22,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Bump version
-        id: bump
+      - name: Validate version
         shell: bash
         run: |
           set -euo pipefail
-          current="$(cat VERSION)"
-          IFS=. read -r major minor patch <<< "$current"
-          case "${{ inputs.version_increment }}" in
-            major) major=$((major + 1)); minor=0; patch=0 ;;
-            minor) minor=$((minor + 1)); patch=0 ;;
-            patch) patch=$((patch + 1)) ;;
-          esac
-          new="$major.$minor.$patch"
-          echo "$new" > VERSION
-          echo "new=$new" >> "$GITHUB_OUTPUT"
-          echo "major=v$major" >> "$GITHUB_OUTPUT"
+          test "v$(cat VERSION)" = "$GITHUB_REF_NAME"
 
-      - name: Commit and tag release
+      - name: Update v0 tag
         shell: bash
         run: |
           set -euo pipefail
-          new="${{ steps.bump.outputs.new }}"
-          major="${{ steps.bump.outputs.major }}"
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -am "chore(release): v$new"
-          git tag "v$new"
-          git tag -f "$major"
-          git push origin HEAD
-          git push origin "v$new"
-          git push origin -f "$major"
+          git tag -f v0 "$GITHUB_SHA"
+          git push origin -f v0
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.bump.outputs.new }}
-          name: v${{ steps.bump.outputs.new }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           generate_release_notes: true

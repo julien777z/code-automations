@@ -6,11 +6,15 @@ from zoneinfo import ZoneInfo
 from croniter import croniter
 
 from code_automations.models.configuration import AutomationTarget, ScheduleConfig
-from code_automations.models.dispatching import DueAutomation
+from code_automations.models.runtime import DueAutomation
 
 logger = logging.getLogger(__name__)
 
-__all__: Final[tuple[str, ...]] = ("due_automations", "latest_occurrence")
+__all__: Final[tuple[str, ...]] = (
+    "dispatcher_occurrence",
+    "due_automations",
+    "latest_occurrence",
+)
 
 
 def local_occurrence_to_utc(occurrence: datetime, timezone: ZoneInfo) -> datetime | None:
@@ -49,6 +53,14 @@ def latest_occurrence(schedule: ScheduleConfig, now: datetime) -> datetime:
     return previous_instant
 
 
+def dispatcher_occurrence(cron: str, now: datetime) -> datetime:
+    """Resolve the scheduled workflow occurrence represented by one event."""
+
+    schedule = ScheduleConfig(cron=cron, timezone="UTC")
+
+    return latest_occurrence(schedule, now)
+
+
 def due_automations(automation_targets: list[AutomationTarget], now: datetime) -> list[DueAutomation]:
     """Find enabled automations scheduled for the current minute."""
 
@@ -67,6 +79,6 @@ def due_automations(automation_targets: list[AutomationTarget], now: datetime) -
 
         occurrence = latest_occurrence(schedule, current)
         if occurrence == current_minute:
-            due.append(DueAutomation(target=target, scheduled_for=occurrence))
+            due.append(DueAutomation(name=target.name, scheduled_for=occurrence))
 
     return due

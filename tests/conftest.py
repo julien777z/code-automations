@@ -43,6 +43,11 @@ projects:
         prompt: hello-world
         skills:
           - example-skill
+        merge:
+          workflows:
+            - Run Tests
+          method: squash
+          timeout_minutes: 120
 """,
         encoding="utf-8",
     )

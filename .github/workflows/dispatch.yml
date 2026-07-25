@@ -30,5 +30,5 @@ jobs:
           prompts-directory-path: example/prompts
           skills-directory-path: example/skills
           run-automation-name: ${{ inputs.automation_name }}
+          codex-environment-id: ${{ vars.CODEX_ENVIRONMENT_ID }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
-          github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
