@@ -113,10 +113,14 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version-file: ${{ github.action_path }}/.python-version
+    - name: Read Node Version
+      id: node-version
+      shell: bash
+      run: printf 'version=%s\n' "$(cat "$GITHUB_ACTION_PATH/.nvmrc")" >> "$GITHUB_OUTPUT"
     - name: Set Up Node
       uses: actions/setup-node@v4
       with:
-        node-version-file: ${{ github.action_path }}/.nvmrc
+        node-version: ${{ steps.node-version.outputs.version }}
     - name: Install Action Dependencies
       shell: bash
       run: |

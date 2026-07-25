@@ -1,6 +1,6 @@
 [project]
 name = "code-automations"
-version = "0.0.1"
+version = "0.0.2"
 description = "Run reusable multi-repository automations from GitHub Actions."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
