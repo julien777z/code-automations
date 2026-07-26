@@ -50,16 +50,26 @@ class TestCloud:
     def test_wait_for_cloud_task_reaches_ready(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Poll pending work until Codex reports completion."""
 
-        statuses = iter(["[PENDING] Working", "[READY] Complete"])
+        statuses = iter(
+            [
+                subprocess.CompletedProcess(
+                    args=[],
+                    returncode=1,
+                    stdout="[PENDING] Working",
+                    stderr="",
+                ),
+                subprocess.CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout="[READY] Complete",
+                    stderr="",
+                ),
+            ]
+        )
 
         monkeypatch.setattr(
             "code_automations.cloud.subprocess.run",
-            lambda *args, **kwargs: subprocess.CompletedProcess(
-                args=[],
-                returncode=0,
-                stdout=next(statuses),
-                stderr="",
-            ),
+            lambda *args, **kwargs: next(statuses),
         )
         monkeypatch.setattr("code_automations.cloud.time.sleep", lambda seconds: None)
 

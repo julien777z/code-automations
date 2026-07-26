@@ -29,7 +29,7 @@ class CloudTaskStatus(StrEnum):
     READY = "READY"
 
 
-def run_codex(command: list[str]) -> str:
+def run_codex(command: list[str], accepted_exit_codes: frozenset[int]) -> str:
     """Run one Codex Cloud command and return its output."""
 
     try:
@@ -42,7 +42,7 @@ def run_codex(command: list[str]) -> str:
     except OSError as error:
         raise DispatchError(f"unable to start Codex: {error}") from error
 
-    if result.returncode != 0:
+    if result.returncode not in accepted_exit_codes:
         detail = result.stderr.strip() or result.stdout.strip() or "Codex command failed"
 
         raise DispatchError(detail)
@@ -65,7 +65,8 @@ def submit_cloud_task(environment: str, branch: str, prompt: str) -> CloudTask:
             "--branch",
             branch,
             prompt,
-        ]
+        ],
+        frozenset({0}),
     )
     match = TASK_URL_PATTERN.fullmatch(output)
 
@@ -78,7 +79,10 @@ def submit_cloud_task(environment: str, branch: str, prompt: str) -> CloudTask:
 def cloud_task_status(task: CloudTask) -> CloudTaskStatus:
     """Read one Codex Cloud task status."""
 
-    output = run_codex(["codex", "cloud", "status", task.task_id])
+    output = run_codex(
+        ["codex", "cloud", "status", task.task_id],
+        frozenset({0, 1}),
+    )
     match = TASK_STATUS_PATTERN.match(output)
 
     if match is None:
