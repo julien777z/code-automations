@@ -8,9 +8,6 @@ license = "MIT"
 license-files = ["LICENSE"]
 dynamic = ["dependencies"]
 
-[project.scripts]
-code-automations = "code_automations.__main__:main"
-
 [tool.poetry]
 packages = [{ include = "code_automations", from = "src" }]
 

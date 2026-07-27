@@ -9,7 +9,7 @@ from agent_sync.errors import AgentSyncError
 from agent_sync.skill import load_skills
 from agent_sync.workspace import Workspace
 from pydantic import ValidationError
-from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
+from pydantic_settings import YamlConfigSettingsSource
 
 from code_automations.errors import ConfigurationError
 from code_automations.models.configuration import (
@@ -32,7 +32,6 @@ __all__: Final[tuple[str, ...]] = (
     "read_prompt",
     "resolve_self_repository",
     "resolve_targets",
-    "validate_configuration",
 )
 
 
@@ -61,41 +60,13 @@ def read_prompt(directory: Path, reference: str) -> str:
     return content.strip()
 
 
-def validate_yaml_keys(node: Node | None, path: tuple[str, ...] = ()) -> None:
-    """Reject duplicate YAML mapping keys before model validation."""
-
-    if isinstance(node, MappingNode):
-        mapping_keys: set[str] = set()
-
-        for key_node, value_node in node.value:
-            if isinstance(key_node, ScalarNode):
-                key = key_node.value
-                if key in mapping_keys:
-                    location = ".".join((*path, key))
-
-                    raise ConfigurationError(f"duplicate YAML key: {location}")
-
-                mapping_keys.add(key)
-                validate_yaml_keys(value_node, (*path, key))
-            else:
-                validate_yaml_keys(value_node, path)
-    elif isinstance(node, SequenceNode):
-        for value_node in node.value:
-            validate_yaml_keys(value_node, path)
-
-
 def load_configuration(path: Path, prompts_directory: Path) -> LoadedConfiguration:
     """Load and semantically validate an automation YAML file."""
 
     try:
-        content = path.read_text(encoding="utf-8")
-        validate_yaml_keys(yaml.compose(content))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError) as error:
-        raise ConfigurationError(f"unable to parse {path}: {error}") from error
-
-    try:
-        config = AutomationsConfig.model_validate(yaml.safe_load(content))
-    except ValidationError as error:
+        source = YamlConfigSettingsSource(AutomationsConfig, yaml_file=path)
+        config = AutomationsConfig.model_validate(source())
+    except (OSError, UnicodeDecodeError, ValidationError, yaml.YAMLError) as error:
         raise ConfigurationError(str(error)) from error
 
     resolved_prompts_directory = prompts_directory.resolve()
@@ -214,16 +185,3 @@ def find_target(
         raise ConfigurationError(f"unknown automation: {name}")
 
     return target
-
-
-def validate_configuration(
-    config_path: Path,
-    prompts_directory: Path,
-    github_repository: str | None = None,
-) -> None:
-    """Validate one automation configuration and its referenced resources."""
-
-    loaded = load_configuration(config_path, prompts_directory)
-    self_repository = resolve_self_repository(loaded, github_repository)
-
-    resolve_targets(loaded, self_repository)

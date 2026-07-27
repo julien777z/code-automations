@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -271,10 +272,10 @@ class ProjectConfig(BaseModel):
         return value
 
 
-class AutomationsConfig(BaseModel):
+class AutomationsConfig(BaseSettings):
     """Define the complete automation configuration."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = SettingsConfigDict(extra="forbid", strict=True)
 
     version: Literal[1]
     projects: dict[str, ProjectConfig] = Field(min_length=1)

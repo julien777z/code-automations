@@ -150,7 +150,7 @@ poetry install
 poetry run pytest
 poetry run ruff check .
 poetry run ruff format --check .
-poetry run code-automations \
+poetry run python -m code_automations \
   --config example/automations.yaml \
   --prompts-directory example/prompts \
   validate

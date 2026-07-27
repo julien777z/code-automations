@@ -2,7 +2,7 @@ import argparse
 import json
 import logging
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Final
 
@@ -12,34 +12,17 @@ from code_automations.configuration import (
     load_configuration,
     resolve_self_repository,
     resolve_targets,
-    validate_configuration,
 )
 from code_automations.errors import ConfigurationError, DispatchError
 from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
 from code_automations.models.runtime import ActionsContext, CliArguments, CloudTask
 from code_automations.rendering import render_target
 from code_automations.scheduling import dispatcher_occurrence, due_automations
+from code_automations.utils import parse_datetime
 
 logger = logging.getLogger(__name__)
 
-__all__: Final[tuple[str, ...]] = ("main", "run")
-
-
-def parse_datetime(value: str | None) -> datetime:
-    """Parse one timezone-aware timestamp or return the current instant."""
-
-    if value is None:
-        return datetime.now(UTC)
-
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError as error:
-        raise ConfigurationError(f"invalid timestamp: {value}") from error
-
-    if parsed.tzinfo is None:
-        raise ConfigurationError("timestamps must include a timezone offset")
-
-    return parsed.astimezone(UTC)
+__all__: Final[tuple[str, ...]] = ("run",)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -111,7 +94,7 @@ def run(arguments: CliArguments) -> int:
     context = ActionsContext()
 
     if arguments.command == "validate":
-        validate_configuration(arguments.config, arguments.prompts_directory, context.github_repository)
+        load_configuration(arguments.config, arguments.prompts_directory)
 
         logger.info("Configuration is valid.")
 
@@ -179,20 +162,15 @@ def run(arguments: CliArguments) -> int:
     return 0
 
 
-def main() -> int:
-    """Run the code-automations CLI."""
-
+if __name__ == "__main__":
     logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
 
     arguments = CliArguments.model_validate(vars(build_parser().parse_args()))
 
     try:
-        return run(arguments)
+        exit_code = run(arguments)
     except (ConfigurationError, DispatchError, ValueError) as error:
         logger.error(error)
+        exit_code = 1
 
-        return 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(exit_code)

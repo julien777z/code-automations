@@ -7,7 +7,7 @@ from code_automations.configuration import (
     find_target,
     load_configuration,
     read_prompt,
-    validate_configuration,
+    resolve_targets,
 )
 from code_automations.errors import ConfigurationError
 from code_automations.models.configuration import AutomationsConfig
@@ -55,8 +55,10 @@ class TestConfiguration:
             encoding="utf-8",
         )
 
+        loaded = load_configuration(automation_config_path, prompts_directory)
+
         with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
-            validate_configuration(automation_config_path, prompts_directory, "owner/repository")
+            resolve_targets(loaded, "owner/repository")
 
     def test_duplicate_merge_workflows_are_rejected(
         self,

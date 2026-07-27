@@ -123,7 +123,7 @@ runs:
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
         PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
       run: >-
-        poetry --directory "$GITHUB_ACTION_PATH" run code-automations
+        poetry --directory "$GITHUB_ACTION_PATH" run python -m code_automations
         --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH"
         --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
         validate
@@ -153,7 +153,7 @@ runs:
       run: |
         export PATH="$GITHUB_ACTION_PATH/node_modules/.bin:$PATH"
         automation_command=(
-          poetry --directory "$GITHUB_ACTION_PATH" run code-automations
+          poetry --directory "$GITHUB_ACTION_PATH" run python -m code_automations
           --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH"
           --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
           dispatch
