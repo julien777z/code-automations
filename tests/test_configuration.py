@@ -6,11 +6,11 @@ import pytest
 from code_automations.configuration import (
     find_target,
     load_configuration,
-    read_fragment,
+    read_prompt,
     validate_configuration,
 )
 from code_automations.errors import ConfigurationError
-from code_automations.models.configuration import AutomationsConfig, FragmentDirectories
+from code_automations.models.configuration import AutomationsConfig
 from code_automations.rendering import render_target
 
 
@@ -20,11 +20,11 @@ class TestConfiguration:
     def test_valid_configuration_renders_cloud_publication_contract(
         self,
         automation_config_path: Path,
-        fragment_directories: FragmentDirectories,
+        prompts_directory: Path,
     ) -> None:
         """Resolve repositories, fragments, and exact merge workflows."""
 
-        loaded = load_configuration(automation_config_path, fragment_directories)
+        loaded = load_configuration(automation_config_path, prompts_directory)
         target = find_target(loaded, "owner/repository", "hello-world")
         rendered = render_target(loaded, target)
 
@@ -37,12 +37,15 @@ class TestConfiguration:
         assert "Use the branch automation/hello-world" in rendered
         assert "Only these exact GitHub Actions workflows gate merging: `Run Tests`." in rendered
         assert "Ignore every other workflow" in rendered
-        assert rendered.index("# Skill: example-skill") < rendered.index("# Prompt")
+        assert "# Required skills" in rendered
+        assert "`example-skill`" in rendered
+        assert "Be concise." not in rendered
+        assert rendered.index("# Required skills") < rendered.index("# Prompt")
 
     def test_duplicate_resolved_repositories_are_rejected(
         self,
         automation_config_path: Path,
-        fragment_directories: FragmentDirectories,
+        prompts_directory: Path,
     ) -> None:
         """Reject a repository repeated through self."""
 
@@ -53,12 +56,12 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
-            validate_configuration(automation_config_path, fragment_directories, "owner/repository")
+            validate_configuration(automation_config_path, prompts_directory, "owner/repository")
 
     def test_duplicate_merge_workflows_are_rejected(
         self,
         automation_config_path: Path,
-        fragment_directories: FragmentDirectories,
+        prompts_directory: Path,
     ) -> None:
         """Reject ambiguous repeated workflow gates."""
 
@@ -69,13 +72,13 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError, match="must be unique"):
-            load_configuration(automation_config_path, fragment_directories)
+            load_configuration(automation_config_path, prompts_directory)
 
     @pytest.mark.parametrize("reference", ["../secret", "/secret", "foo\\bar", "foo//bar"])
     def test_unsafe_references_are_rejected(
         self,
         automation_config_path: Path,
-        fragment_directories: FragmentDirectories,
+        prompts_directory: Path,
         reference: str,
     ) -> None:
         """Reject unsafe prompt and skill references."""
@@ -87,19 +90,19 @@ class TestConfiguration:
         )
 
         with pytest.raises(ConfigurationError):
-            load_configuration(automation_config_path, fragment_directories)
+            load_configuration(automation_config_path, prompts_directory)
 
-    def test_missing_fragment_is_rejected(
+    def test_missing_native_skill_is_rejected(
         self,
         automation_config_path: Path,
-        fragment_directories: FragmentDirectories,
+        prompts_directory: Path,
     ) -> None:
-        """Reject missing prompt and skill files."""
+        """Reject a configured skill absent from the canonical agent directory."""
 
-        (fragment_directories.skills / "example-skill.md").unlink()
+        (automation_config_path.parent / ".agents/skills/example-skill/SKILL.md").unlink()
 
-        with pytest.raises(ConfigurationError, match="missing or non-regular"):
-            load_configuration(automation_config_path, fragment_directories)
+        with pytest.raises(ConfigurationError, match="Missing SKILL.md"):
+            load_configuration(automation_config_path, prompts_directory)
 
     def test_non_utf8_fragment_is_rejected(self, tmp_path: Path) -> None:
         """Reject fragment content that cannot be decoded."""
@@ -109,7 +112,7 @@ class TestConfiguration:
         (directory / "invalid.md").write_bytes(b"\xff")
 
         with pytest.raises(ConfigurationError, match="not UTF-8"):
-            read_fragment(directory, "prompt", "invalid")
+            read_prompt(directory, "invalid")
 
     def test_tracked_schema_matches_configuration_model(self) -> None:
         """Keep the public JSON schema synchronized with Pydantic."""

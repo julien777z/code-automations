@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from code_automations.models.configuration import FragmentDirectories, ModelConfig
+from code_automations.models.configuration import ModelConfig
 from code_automations.models.runtime import CliArguments, CloudTask
 from code_automations.runtime import run
 
@@ -13,7 +13,7 @@ class TestRuntime:
     def test_manual_dispatch_submits_and_waits(
         self,
         automation_config_path: Path,
-        fragment_directories: FragmentDirectories,
+        prompts_directory: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Launch and monitor the selected automation."""
@@ -42,8 +42,7 @@ class TestRuntime:
         result = run(
             CliArguments(
                 config=automation_config_path,
-                prompts_directory=fragment_directories.prompts,
-                skills_directory=fragment_directories.skills,
+                prompts_directory=prompts_directory,
                 command="dispatch",
                 automation="hello-world",
                 environment="environment_example",
@@ -60,7 +59,7 @@ class TestRuntime:
     def test_scheduled_dispatch_uses_dispatcher_occurrence(
         self,
         scheduled_configuration,
-        fragment_directories: FragmentDirectories,
+        prompts_directory: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Evaluate delayed workflow events at their scheduled instant."""
@@ -77,8 +76,7 @@ class TestRuntime:
         result = run(
             CliArguments(
                 config=config_path,
-                prompts_directory=fragment_directories.prompts,
-                skills_directory=fragment_directories.skills,
+                prompts_directory=prompts_directory,
                 command="dispatch",
                 scheduled=True,
                 now="2025-07-15T18:05:00Z",

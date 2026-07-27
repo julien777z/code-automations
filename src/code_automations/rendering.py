@@ -1,7 +1,7 @@
 import logging
 from typing import Final
 
-from code_automations.configuration import read_fragment
+from code_automations.configuration import read_prompt
 from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
 
 logger = logging.getLogger(__name__)
@@ -46,22 +46,23 @@ def render_target(
         ]
     )
 
-    for skill in target.automation.skills:
+    if target.automation.skills:
         sections.extend(
             [
                 "",
-                f"# Skill: {skill}",
+                "# Required skills",
                 "",
-                read_fragment(loaded.fragment_directories.skills, "skill", skill),
+                "Use these repository-native skills for this task:",
             ]
         )
+        sections.extend(f"- `{skill}`" for skill in target.automation.skills)
 
     sections.extend(
         [
             "",
             "# Prompt",
             "",
-            read_fragment(loaded.fragment_directories.prompts, "prompt", target.automation.prompt),
+            read_prompt(loaded.prompts_directory, target.automation.prompt),
             "",
             "# Publication contract",
             "",

@@ -16,6 +16,7 @@ packages = [{ include = "code_automations", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.13,<3.14"
+agent-sync-action = { git = "https://github.com/julien777z/agent-sync-action.git", rev = "007429c0ba5c0365af732ee89db45a0f2bdcff35" }
 croniter = ">=6.0.0,<7"
 pydantic = ">=2.11.0,<3"
 pydantic-settings = ">=2.10.0,<3"

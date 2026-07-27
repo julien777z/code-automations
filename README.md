@@ -19,6 +19,10 @@ Define projects, repositories, prompts, skills, and optional schedules in an aut
 This example runs `hello-world` every Monday at 09:00 UTC across the current repository and
 `owner/related-repository`.
 
+Skills are canonical Agent Skills under `.agents/skills/<name>/SKILL.md`. The Cloud environment
+should run Agent Sync during setup and maintenance so each supported coding agent receives its
+native skill layout.
+
 ```yaml
 version: 1
 projects:
@@ -73,7 +77,6 @@ jobs:
           automations-file-path: automations.yaml
           codex-environment-id: ${{ vars.CODEX_ENVIRONMENT_ID }}
           prompts-directory-path: prompts
-          skills-directory-path: skills
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
 ```
 
@@ -108,7 +111,6 @@ jobs:
         with:
           automations-file-path: automations.yaml
           prompts-directory-path: prompts
-          skills-directory-path: skills
           run-automation-name: ${{ inputs.automation_name }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
           codex-environment-id: ${{ vars.CODEX_ENVIRONMENT_ID }}
@@ -131,7 +133,6 @@ environment when an automation should publish pull requests.
 | --- | --- | --- |
 | `automations-file-path` | Required | Locates the automation configuration in the checked-out repository. |
 | `prompts-directory-path` | Required | Locates prompt Markdown files in the checked-out repository. |
-| `skills-directory-path` | Required | Locates skill Markdown files in the checked-out repository. |
 | `mode` | `dispatch` | Selects the `validate` or `dispatch` behavior. |
 | `run-automation-name` | `""` | Selects a manual automation; an empty value evaluates configured schedules. |
 | `codex-auth-json` | Required | Provides the authentication document required for dispatch. |
@@ -152,7 +153,6 @@ poetry run ruff format --check .
 poetry run code-automations \
   --config example/automations.yaml \
   --prompts-directory example/prompts \
-  --skills-directory example/skills \
   validate
 ```
 

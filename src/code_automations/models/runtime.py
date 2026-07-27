@@ -32,7 +32,6 @@ class CliArguments(BaseModel):
 
     config: Path
     prompts_directory: Path
-    skills_directory: Path
     command: Literal["validate", "render", "due", "dispatch"]
     automation: str | None = None
     scheduled: bool = False

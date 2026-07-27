@@ -15,7 +15,7 @@ from code_automations.configuration import (
     validate_configuration,
 )
 from code_automations.errors import ConfigurationError, DispatchError
-from code_automations.models.configuration import AutomationTarget, FragmentDirectories, LoadedConfiguration
+from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
 from code_automations.models.runtime import ActionsContext, CliArguments, CloudTask
 from code_automations.rendering import render_target
 from code_automations.scheduling import dispatcher_occurrence, due_automations
@@ -48,7 +48,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="code-automations")
     parser.add_argument("--config", type=Path, default=Path("automations.yaml"))
     parser.add_argument("--prompts-directory", type=Path, required=True)
-    parser.add_argument("--skills-directory", type=Path, required=True)
 
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("validate")
@@ -110,19 +109,15 @@ def run(arguments: CliArguments) -> int:
     """Run a parsed CLI command."""
 
     context = ActionsContext()
-    fragment_directories = FragmentDirectories(
-        prompts=arguments.prompts_directory,
-        skills=arguments.skills_directory,
-    )
 
     if arguments.command == "validate":
-        validate_configuration(arguments.config, fragment_directories, context.github_repository)
+        validate_configuration(arguments.config, arguments.prompts_directory, context.github_repository)
 
         logger.info("Configuration is valid.")
 
         return 0
 
-    loaded = load_configuration(arguments.config, fragment_directories)
+    loaded = load_configuration(arguments.config, arguments.prompts_directory)
     self_repository = resolve_self_repository(loaded, context.github_repository)
 
     if arguments.command == "render":

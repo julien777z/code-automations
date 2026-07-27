@@ -2,9 +2,12 @@ import logging
 import re
 import subprocess
 from pathlib import Path
-from typing import Final, Literal
+from typing import Final
 
 import yaml
+from agent_sync.errors import AgentSyncError
+from agent_sync.skill import load_skills
+from agent_sync.workspace import Workspace
 from pydantic import ValidationError
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
@@ -13,14 +16,11 @@ from code_automations.models.configuration import (
     REPOSITORY_PATTERN,
     AutomationsConfig,
     AutomationTarget,
-    FragmentDirectories,
     LoadedConfiguration,
     ResolvedRepository,
 )
 
 logger = logging.getLogger(__name__)
-
-type FragmentType = Literal["prompt", "skill"]
 
 GITHUB_ORIGIN_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"github\.com(?::|/)([A-Za-z0-9._-]+/[A-Za-z0-9._-]+?)(?:\.git)?$"
@@ -29,15 +29,15 @@ GITHUB_ORIGIN_PATTERN: Final[re.Pattern[str]] = re.compile(
 __all__: Final[tuple[str, ...]] = (
     "find_target",
     "load_configuration",
-    "read_fragment",
+    "read_prompt",
     "resolve_self_repository",
     "resolve_targets",
     "validate_configuration",
 )
 
 
-def read_fragment(directory: Path, fragment_type: FragmentType, reference: str) -> str:
-    """Read one validated Markdown instruction fragment."""
+def read_prompt(directory: Path, reference: str) -> str:
+    """Read one validated Markdown automation prompt."""
 
     base = directory.resolve()
 
@@ -45,18 +45,18 @@ def read_fragment(directory: Path, fragment_type: FragmentType, reference: str) 
     candidate = (base / filename).resolve()
 
     if not candidate.is_relative_to(base):
-        raise ConfigurationError(f"{fragment_type} reference escapes its directory: {reference}")
+        raise ConfigurationError(f"prompt reference escapes its directory: {reference}")
 
     if not candidate.is_file():
-        raise ConfigurationError(f"missing or non-regular {fragment_type} file: {reference}")
+        raise ConfigurationError(f"missing or non-regular prompt file: {reference}")
 
     try:
         content = candidate.read_text(encoding="utf-8")
     except UnicodeDecodeError as error:
-        raise ConfigurationError(f"{fragment_type} file is not UTF-8: {reference}") from error
+        raise ConfigurationError(f"prompt file is not UTF-8: {reference}") from error
 
     if not content.strip():
-        raise ConfigurationError(f"{fragment_type} file is empty: {reference}")
+        raise ConfigurationError(f"prompt file is empty: {reference}")
 
     return content.strip()
 
@@ -84,7 +84,7 @@ def validate_yaml_keys(node: Node | None, path: tuple[str, ...] = ()) -> None:
             validate_yaml_keys(value_node, path)
 
 
-def load_configuration(path: Path, fragment_directories: FragmentDirectories) -> LoadedConfiguration:
+def load_configuration(path: Path, prompts_directory: Path) -> LoadedConfiguration:
     """Load and semantically validate an automation YAML file."""
 
     try:
@@ -98,29 +98,29 @@ def load_configuration(path: Path, fragment_directories: FragmentDirectories) ->
     except ValidationError as error:
         raise ConfigurationError(str(error)) from error
 
-    resolved_directories = FragmentDirectories(
-        prompts=fragment_directories.prompts.resolve(),
-        skills=fragment_directories.skills.resolve(),
-    )
+    resolved_prompts_directory = prompts_directory.resolve()
+    if not resolved_prompts_directory.is_dir():
+        raise ConfigurationError(f"prompt directory does not exist: {resolved_prompts_directory}")
 
-    for fragment_type, directory in (
-        ("prompt", resolved_directories.prompts),
-        ("skill", resolved_directories.skills),
-    ):
-        if not directory.is_dir():
-            raise ConfigurationError(f"{fragment_type} directory does not exist: {directory}")
+    root = path.resolve().parent
+
+    try:
+        skill_names = {skill.slug for skill in load_skills(Workspace(root=root))}
+    except (AgentSyncError, OSError, UnicodeDecodeError, yaml.YAMLError, ValidationError) as error:
+        raise ConfigurationError(str(error)) from error
 
     loaded = LoadedConfiguration(
-        root=path.resolve().parent,
-        fragment_directories=resolved_directories,
+        root=root,
+        prompts_directory=resolved_prompts_directory,
         config=config,
     )
 
     for project in config.projects.values():
         for automation in project.automations.values():
-            read_fragment(loaded.fragment_directories.prompts, "prompt", automation.prompt)
+            read_prompt(loaded.prompts_directory, automation.prompt)
             for skill in automation.skills:
-                read_fragment(loaded.fragment_directories.skills, "skill", skill)
+                if skill not in skill_names:
+                    raise ConfigurationError(f"missing native skill: {skill}")
 
     return loaded
 
@@ -218,12 +218,12 @@ def find_target(
 
 def validate_configuration(
     config_path: Path,
-    fragment_directories: FragmentDirectories,
+    prompts_directory: Path,
     github_repository: str | None = None,
 ) -> None:
     """Validate one automation configuration and its referenced resources."""
 
-    loaded = load_configuration(config_path, fragment_directories)
+    loaded = load_configuration(config_path, prompts_directory)
     self_repository = resolve_self_repository(loaded, github_repository)
 
     resolve_targets(loaded, self_repository)

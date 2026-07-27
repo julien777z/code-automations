@@ -13,9 +13,6 @@ inputs:
   prompts-directory-path:
     description: Path to the prompt Markdown directory relative to the checked-out repository.
     required: true
-  skills-directory-path:
-    description: Path to the skill Markdown directory relative to the checked-out repository.
-    required: true
   mode:
     description: Operation to run — validate or dispatch.
     required: false
@@ -40,7 +37,6 @@ runs:
         AUTOMATION_MODE: ${{ inputs.mode }}
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
         PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
-        SKILLS_DIRECTORY_PATH: ${{ inputs.skills-directory-path }}
         CODEX_AUTH_JSON: ${{ inputs.codex-auth-json }}
         CODEX_ENVIRONMENT_ID: ${{ inputs.codex-environment-id }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -83,9 +79,8 @@ runs:
         workspace_root="$(realpath "$GITHUB_WORKSPACE")"
         automation_file_path="$(realpath -m -- "$workspace_root/$AUTOMATIONS_FILE_PATH")"
         prompts_directory_path="$(realpath -m -- "$workspace_root/$PROMPTS_DIRECTORY_PATH")"
-        skills_directory_path="$(realpath -m -- "$workspace_root/$SKILLS_DIRECTORY_PATH")"
 
-        for resolved_path in "$automation_file_path" "$prompts_directory_path" "$skills_directory_path"; do
+        for resolved_path in "$automation_file_path" "$prompts_directory_path"; do
           case "$resolved_path" in
             "$workspace_root"/*) ;;
             *)
@@ -103,11 +98,6 @@ runs:
           echo "prompt directory does not exist: $PROMPTS_DIRECTORY_PATH" >&2
           exit 1
         }
-        test -d "$skills_directory_path" || {
-          echo "skill directory does not exist: $SKILLS_DIRECTORY_PATH" >&2
-          exit 1
-        }
-
         git config --local --unset-all http.https://github.com/.extraheader || true
     - name: Set Up Python
       uses: actions/setup-python@v5
@@ -132,12 +122,10 @@ runs:
       env:
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
         PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
-        SKILLS_DIRECTORY_PATH: ${{ inputs.skills-directory-path }}
       run: >-
         poetry --directory "$GITHUB_ACTION_PATH" run code-automations
         --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH"
         --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
-        --skills-directory "$GITHUB_WORKSPACE/$SKILLS_DIRECTORY_PATH"
         validate
     - name: Set Up Automation Authentication
       id: authentication
@@ -161,7 +149,6 @@ runs:
         CODEX_HOME: ${{ steps.authentication.outputs.home }}
         GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
         PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
-        SKILLS_DIRECTORY_PATH: ${{ inputs.skills-directory-path }}
         RUN_AUTOMATION: ${{ inputs.run-automation-name }}
       run: |
         export PATH="$GITHUB_ACTION_PATH/node_modules/.bin:$PATH"
@@ -169,7 +156,6 @@ runs:
           poetry --directory "$GITHUB_ACTION_PATH" run code-automations
           --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH"
           --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
-          --skills-directory "$GITHUB_WORKSPACE/$SKILLS_DIRECTORY_PATH"
           dispatch
           --environment "$CODEX_ENVIRONMENT_ID"
           --branch "$GITHUB_REF_NAME"

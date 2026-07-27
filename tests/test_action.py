@@ -22,7 +22,6 @@ class TestAction:
             "mode",
             "prompts-directory-path",
             "run-automation-name",
-            "skills-directory-path",
         }
         assert inputs["codex-environment-id"]["required"] is True
         assert "github-token" not in inputs

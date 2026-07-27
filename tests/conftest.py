@@ -3,30 +3,30 @@ from pathlib import Path
 import pytest
 
 from code_automations.configuration import load_configuration
-from code_automations.models.configuration import FragmentDirectories, LoadedConfiguration
+from code_automations.models.configuration import LoadedConfiguration
 
 
 @pytest.fixture
-def fragment_directories(tmp_path: Path) -> FragmentDirectories:
-    """Provide independent prompt and skill directories."""
+def prompts_directory(tmp_path: Path) -> Path:
+    """Provide an independent prompt directory."""
 
-    return FragmentDirectories(
-        prompts=tmp_path / "example/prompts",
-        skills=tmp_path / "example/skills",
-    )
+    return tmp_path / "prompts"
 
 
 @pytest.fixture
-def automation_config_path(tmp_path: Path, fragment_directories: FragmentDirectories) -> Path:
+def automation_config_path(tmp_path: Path, prompts_directory: Path) -> Path:
     """Provide a valid automation configuration file."""
 
-    prompt = fragment_directories.prompts / "hello-world.md"
-    skill = fragment_directories.skills / "example-skill.md"
+    prompt = prompts_directory / "hello-world.md"
+    skill = tmp_path / ".agents/skills/example-skill/SKILL.md"
     prompt.parent.mkdir(parents=True)
     skill.parent.mkdir(parents=True)
 
     prompt.write_text("Say hello.\n", encoding="utf-8")
-    skill.write_text("Be concise.\n", encoding="utf-8")
+    skill.write_text(
+        "---\nname: example-skill\ndescription: Keep automation output concise.\n---\n\nBe concise.\n",
+        encoding="utf-8",
+    )
 
     config_path = tmp_path / "automations.yaml"
     config_path.write_text(
@@ -61,12 +61,11 @@ projects:
 @pytest.fixture
 def scheduled_configuration(
     tmp_path: Path,
-    fragment_directories: FragmentDirectories,
+    prompts_directory: Path,
 ) -> LoadedConfiguration:
     """Provide a scheduled automation configuration."""
 
-    prompt = fragment_directories.prompts / "task.md"
-    fragment_directories.skills.mkdir(parents=True)
+    prompt = prompts_directory / "task.md"
     prompt.parent.mkdir(parents=True)
 
     prompt.write_text("Run the task.\n", encoding="utf-8")
@@ -88,4 +87,4 @@ projects:
         encoding="utf-8",
     )
 
-    return load_configuration(config_path, fragment_directories)
+    return load_configuration(config_path, prompts_directory)
