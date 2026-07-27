@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import subprocess
@@ -7,6 +8,7 @@ from enum import StrEnum
 from typing import Final
 
 from code_automations.errors import DispatchError
+from code_automations.models.configuration import ModelConfig
 from code_automations.models.runtime import CloudTask
 
 logger = logging.getLogger(__name__)
@@ -50,7 +52,7 @@ def run_codex(command: list[str], accepted_exit_codes: frozenset[int]) -> str:
     return result.stdout.strip()
 
 
-def submit_cloud_task(environment: str, branch: str, prompt: str) -> CloudTask:
+def submit_cloud_task(environment: str, branch: str, prompt: str, model: ModelConfig) -> CloudTask:
     """Submit one coordinating Codex Cloud task."""
 
     output = run_codex(
@@ -64,6 +66,10 @@ def submit_cloud_task(environment: str, branch: str, prompt: str) -> CloudTask:
             "1",
             "--branch",
             branch,
+            "--config",
+            f"model={json.dumps(model.name)}",
+            "--config",
+            f"model_reasoning_effort={json.dumps(model.reasoning_effort)}",
             prompt,
         ],
         frozenset({0}),

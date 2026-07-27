@@ -33,6 +33,9 @@ projects:
         prompt: hello-world
         skills:
           - example-skill
+        model:
+          name: gpt-5.6-sol
+          reasoning_effort: medium
         schedule:
           cron: "0 9 * * 1" # Every Monday at 09:00 UTC
           timezone: UTC
@@ -44,6 +47,7 @@ projects:
 ```
 
 > Note: Prompt and skill references may include `.md` or omit it.
+> The model configuration is optional and defaults to `gpt-5.6-sol` with `medium` reasoning.
 
 ### Validate Configuration
 

@@ -95,7 +95,12 @@ def submit_target(
 ) -> None:
     """Submit and monitor one configured automation target."""
 
-    task = submit_cloud_task(environment, branch, render_target(loaded, target))
+    task = submit_cloud_task(
+        environment,
+        branch,
+        render_target(loaded, target),
+        target.automation.model,
+    )
 
     report_task(summary_path, target.name, task)
     wait_for_cloud_task(task, timeout)

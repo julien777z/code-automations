@@ -17,6 +17,7 @@ __all__: Final[tuple[str, ...]] = (
     "FragmentDirectories",
     "LoadedConfiguration",
     "MergeConfig",
+    "ModelConfig",
     "ProjectConfig",
     "REPOSITORY_PATTERN",
     "RepositoryConfig",
@@ -178,6 +179,15 @@ class MergeConfig(BaseModel):
         return normalized
 
 
+class ModelConfig(BaseModel):
+    """Select the model used by one automation."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    name: str = Field(default="gpt-5.6-sol", min_length=1)
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] = "medium"
+
+
 class AutomationConfig(BaseModel):
     """Define one automation."""
 
@@ -185,6 +195,7 @@ class AutomationConfig(BaseModel):
 
     prompt: str
     skills: list[str] = Field(default_factory=list)
+    model: ModelConfig = Field(default_factory=ModelConfig)
     schedule: ScheduleConfig | None = None
     merge: MergeConfig | None = None
     enabled: bool = True

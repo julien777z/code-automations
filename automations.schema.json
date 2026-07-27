@@ -15,6 +15,9 @@
           "title": "Skills",
           "type": "array"
         },
+        "model": {
+          "$ref": "#/$defs/ModelConfig"
+        },
         "schedule": {
           "anyOf": [
             {
@@ -79,6 +82,35 @@
         "workflows"
       ],
       "title": "MergeConfig",
+      "type": "object"
+    },
+    "ModelConfig": {
+      "additionalProperties": false,
+      "description": "Select the model used by one automation.",
+      "properties": {
+        "name": {
+          "default": "gpt-5.6-sol",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "default": "medium",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra"
+          ],
+          "title": "Reasoning Effort",
+          "type": "string"
+        }
+      },
+      "title": "ModelConfig",
       "type": "object"
     },
     "ProjectConfig": {

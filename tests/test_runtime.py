@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from code_automations.models.configuration import FragmentDirectories
+from code_automations.models.configuration import FragmentDirectories, ModelConfig
 from code_automations.models.runtime import CliArguments, CloudTask
 from code_automations.runtime import run
 
@@ -22,13 +22,13 @@ class TestRuntime:
             task_id="task_example",
             url="https://chatgpt.com/codex/tasks/task_example",
         )
-        submissions: list[tuple[str, str, str]] = []
+        submissions: list[tuple[str, str, str, ModelConfig]] = []
         waits: list[str] = []
 
-        def submit(environment: str, branch: str, prompt: str) -> CloudTask:
+        def submit(environment: str, branch: str, prompt: str, model: ModelConfig) -> CloudTask:
             """Capture one Cloud submission."""
 
-            submissions.append((environment, branch, prompt))
+            submissions.append((environment, branch, prompt, model))
 
             return task
 
@@ -54,6 +54,7 @@ class TestRuntime:
         assert result == 0
         assert submissions[0][:2] == ("environment_example", "alpha")
         assert "Say hello." in submissions[0][2]
+        assert submissions[0][3] == ModelConfig(name="gpt-5.6-terra", reasoning_effort="high")
         assert waits == ["task_example"]
 
     def test_scheduled_dispatch_uses_dispatcher_occurrence(
