@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
+from code_automations.__main__ import run
 from code_automations.models.configuration import ModelConfig
 from code_automations.models.runtime import CliArguments, CloudTask
-from code_automations.runtime import run
 
 
 class TestRuntime:
@@ -32,9 +32,9 @@ class TestRuntime:
 
             return task
 
-        monkeypatch.setattr("code_automations.runtime.submit_cloud_task", submit)
+        monkeypatch.setattr("code_automations.__main__.submit_cloud_task", submit)
         monkeypatch.setattr(
-            "code_automations.runtime.wait_for_cloud_task",
+            "code_automations.__main__.wait_for_cloud_task",
             lambda received, timeout: waits.append(received.task_id),
         )
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repository")
@@ -69,7 +69,7 @@ class TestRuntime:
 
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repository")
         monkeypatch.setattr(
-            "code_automations.runtime.submit_target",
+            "code_automations.__main__.submit_target",
             lambda loaded, target, environment, branch, timeout, summary_path: submitted.append(target.name),
         )
 
