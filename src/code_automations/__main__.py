@@ -2,10 +2,11 @@ import argparse
 import json
 import logging
 import sys
+from datetime import timedelta
 from pathlib import Path
 from typing import Final
 
-from code_automations.agent import run_target
+from code_automations.cloud import submit_cloud_task, wait_for_cloud_task
 from code_automations.configuration import (
     find_target,
     load_configuration,
@@ -13,10 +14,12 @@ from code_automations.configuration import (
     resolve_targets,
 )
 from code_automations.errors import ConfigurationError, DispatchError
-from code_automations.models.runtime import ActionsContext, CliArguments
+from code_automations.models.configuration import AutomationTarget, LoadedConfiguration
+from code_automations.models.runtime import ActionsContext, CliArguments, CloudTask
 from code_automations.rendering import render_target
 from code_automations.scheduling import dispatcher_occurrence, due_automations
 from code_automations.utils import parse_datetime
+from code_automations.workspace import prepare_workspace
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +49,50 @@ def build_parser() -> argparse.ArgumentParser:
     selection.add_argument("--scheduled", action="store_true")
     dispatch_parser.add_argument("--now")
     dispatch_parser.add_argument("--dispatcher-schedule")
-    dispatch_parser.add_argument("--workspace", type=Path, required=True)
-    dispatch_parser.add_argument("--agent-home", type=Path, required=True)
+    dispatch_parser.add_argument("--environment", required=True)
+    dispatch_parser.add_argument("--branch", required=True)
+    dispatch_parser.add_argument("--workspace", type=Path, default=Path("/workspace"))
+    dispatch_parser.add_argument("--task-timeout-minutes", type=int, default=150)
+
+    workspace_parser = subparsers.add_parser("prepare-workspace")
+    workspace_parser.add_argument("--workspace", type=Path, default=Path("/workspace"))
 
     return parser
+
+
+def report_task(summary_path: Path | None, name: str, task: CloudTask) -> None:
+    """Report a submitted task to logs and the Actions summary."""
+
+    logger.info(task.url)
+
+    if summary_path is None:
+        return
+
+    with summary_path.open("a", encoding="utf-8") as summary:
+        summary.write(f"## {name}\n\n- [Codex Cloud task]({task.url})\n")
+
+
+def submit_target(
+    loaded: LoadedConfiguration,
+    target: AutomationTarget,
+    environment: str,
+    branch: str,
+    workspace: Path,
+    self_repository: str | None,
+    timeout: timedelta,
+    summary_path: Path | None,
+) -> None:
+    """Submit and monitor one configured automation target."""
+
+    task = submit_cloud_task(
+        environment,
+        branch,
+        render_target(loaded, target, workspace, self_repository),
+        target.model,
+    )
+
+    report_task(summary_path, target.name, task)
+    wait_for_cloud_task(task, timeout)
 
 
 def run(arguments: CliArguments) -> int:
@@ -67,12 +110,20 @@ def run(arguments: CliArguments) -> int:
     loaded = load_configuration(arguments.config, arguments.prompts_directory)
     self_repository = resolve_self_repository(loaded, context.github_repository)
 
+    if arguments.command == "prepare-workspace":
+        if arguments.workspace is None:
+            raise ConfigurationError("prepare-workspace requires a workspace path")
+
+        prepare_workspace(loaded, arguments.workspace, self_repository)
+
+        return 0
+
     if arguments.command == "render":
         if arguments.automation is None:
             raise ConfigurationError("render requires an automation name")
 
         target = find_target(loaded, self_repository, arguments.automation)
-        logger.info(render_target(loaded, target).removesuffix("\n"))
+        logger.info(render_target(loaded, target, Path("/workspace"), self_repository).removesuffix("\n"))
 
         return 0
 
@@ -99,8 +150,13 @@ def run(arguments: CliArguments) -> int:
 
         return 0
 
-    if arguments.workspace is None or arguments.agent_home is None:
-        raise ConfigurationError("dispatch requires workspace and agent home paths")
+    if arguments.environment is None or arguments.branch is None or arguments.workspace is None:
+        raise ConfigurationError("dispatch requires environment, branch, and workspace")
+
+    timeout = timedelta(minutes=arguments.task_timeout_minutes)
+
+    if timeout <= timedelta(0):
+        raise ConfigurationError("task timeout must be positive")
 
     selected_targets = (
         [find_target(loaded, self_repository, arguments.automation)]
@@ -109,11 +165,14 @@ def run(arguments: CliArguments) -> int:
     )
 
     for target in selected_targets:
-        run_target(
+        submit_target(
             loaded,
             target,
+            arguments.environment,
+            arguments.branch,
             arguments.workspace,
-            arguments.agent_home,
+            self_repository,
+            timeout,
             context.github_step_summary,
         )
 

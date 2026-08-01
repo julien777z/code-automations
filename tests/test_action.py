@@ -6,8 +6,8 @@ import yaml
 class TestAction:
     """Test the reusable GitHub Action contract."""
 
-    def test_composite_action_launches_local_agent(self) -> None:
-        """Expose runner-local dispatch inputs with a GitHub token fallback."""
+    def test_composite_action_launches_cloud_task(self) -> None:
+        """Expose Cloud dispatch and durable authentication inputs."""
 
         action_path = Path(__file__).parents[1] / "action.yml"
         action_script_path = Path(__file__).parents[1] / ".github/scripts/action.py"
@@ -24,6 +24,7 @@ class TestAction:
         assert set(inputs) == {
             "automations-file-path",
             "codex-auth-json",
+            "codex-environment-id",
             "github-token",
             "mode",
             "prompts-directory-path",
@@ -38,13 +39,14 @@ class TestAction:
         assert '"npm", "ci", "--omit=dev", "--prefix"' in bootstrap_script
         assert "environment_value" not in action_script
         assert "BaseSettings" in config_script
-        assert "codex cloud" not in rendered
+        assert "Persist Automation Authentication" in rendered
         assert "inputs.github-token || github.token" in rendered
-        assert '"--workspace",' in action_script
-        assert '"--agent-home",' in action_script
+        assert '"--environment",' in action_script
+        assert '"--branch",' in action_script
         assert "cwd=config.github_workspace" in action_script
-        assert "CODEX_ENVIRONMENT_ID" not in rendered
-        assert "codex_environment_id" not in config_script
+        assert "CODEX_ENVIRONMENT_ID" in rendered
+        assert "codex_environment_id" in config_script
+        assert 'gh", "secret", "set", "CODEX_AUTH_JSON' in action_script
         assert "scheduled dispatch is only allowed from the default branch" in config_script
         assert 'github_event_name != "workflow_dispatch"' in config_script
 

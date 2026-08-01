@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -11,8 +11,10 @@ logger = logging.getLogger(__name__)
 __all__: Final[tuple[str, ...]] = (
     "ActionsContext",
     "CliArguments",
+    "CloudTask",
     "DueAutomation",
     "PreparedRepository",
+    "WorkspaceAuthentication",
 )
 
 
@@ -32,13 +34,32 @@ class CliArguments(BaseModel):
 
     config: Path
     prompts_directory: Path
-    command: Literal["validate", "render", "due", "dispatch"]
+    command: Literal["validate", "render", "due", "dispatch", "prepare-workspace"]
     automation: str | None = None
     scheduled: bool = False
     now: str | None = None
     dispatcher_schedule: str | None = None
-    workspace: Path | None = None
-    agent_home: Path | None = None
+    workspace: Path | None = Path("/workspace")
+    environment: str | None = None
+    branch: str | None = None
+    task_timeout_minutes: int = 150
+
+
+class CloudTask(BaseModel):
+    """Identify one submitted Codex Cloud task."""
+
+    model_config = ConfigDict(frozen=True)
+
+    task_id: str
+    url: str
+
+
+class WorkspaceAuthentication(BaseSettings):
+    """Read setup-only authentication for an agent workspace."""
+
+    model_config = SettingsConfigDict(extra="ignore", frozen=True)
+
+    automation_github_token: SecretStr
 
 
 class PreparedRepository(BaseModel):

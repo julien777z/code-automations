@@ -12,6 +12,7 @@ class ValidationConfig(BaseSettings):
 
     automation_mode: Literal["validate", "dispatch"]
     automations_file_path: Path
+    codex_environment_id: str = ""
     prompts_directory_path: Path
     default_branch: str
     github_event_name: str
@@ -24,6 +25,9 @@ class ValidationConfig(BaseSettings):
 
         if self.automation_mode != "dispatch":
             return self
+
+        if not self.codex_environment_id:
+            raise ValueError("codex-environment-id is required in dispatch mode")
 
         if self.github_event_name == "schedule":
             if self.github_ref != f"refs/heads/{self.default_branch}":
@@ -50,15 +54,25 @@ class DispatchConfig(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore", frozen=True)
 
     automations_file_path: Path
+    codex_environment_id: str
     codex_home: Path
-    gh_token: SecretStr
+    github_ref_name: str
     github_action_path: Path
     github_event_schedule: str = ""
     github_workspace: Path
     path: str
     prompts_directory_path: Path
-    runner_temp: Path
     run_automation: str = ""
+
+
+class PersistenceConfig(BaseSettings):
+    """Provide validated settings for persisting refreshed Codex authentication."""
+
+    model_config = SettingsConfigDict(extra="ignore", frozen=True)
+
+    codex_home: Path
+    gh_token: SecretStr
+    github_repository: str
 
 
 class CleanupConfig(BaseSettings):
@@ -66,6 +80,5 @@ class CleanupConfig(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore", frozen=True)
 
-    automation_workspace: Path | None = None
     authentication_home: Path | None = None
     runner_temp: Path

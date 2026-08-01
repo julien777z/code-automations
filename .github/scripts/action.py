@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import os
 import shutil
@@ -6,7 +7,13 @@ import subprocess
 import sys
 from typing import Final
 
-from config import AuthenticationConfig, CleanupConfig, DispatchConfig, ValidationConfig
+from config import (
+    AuthenticationConfig,
+    CleanupConfig,
+    DispatchConfig,
+    PersistenceConfig,
+    ValidationConfig,
+)
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -14,6 +21,7 @@ logger = logging.getLogger(__name__)
 ACTION_COMMANDS: Final[tuple[str, ...]] = (
     "cleanup-runtime",
     "dispatch",
+    "persist-authentication",
     "setup-authentication",
     "validate-inputs",
 )
@@ -62,6 +70,10 @@ def setup_authentication() -> None:
     with os.fdopen(descriptor, "w", encoding="utf-8") as authentication_file:
         authentication_file.write(config.codex_auth_json.get_secret_value())
 
+    configuration_path = authentication_home / "config.toml"
+    configuration_path.write_text('cli_auth_credentials_store = "file"\n', encoding="utf-8")
+    configuration_path.chmod(0o600)
+
     with config.github_output.open("a", encoding="utf-8") as output:
         output.write(f"home={authentication_home}\n")
 
@@ -84,10 +96,10 @@ def dispatch() -> None:
         "--prompts-directory",
         str(config.github_workspace / config.prompts_directory_path),
         "dispatch",
-        "--workspace",
-        str(config.runner_temp / "code-automations-workspace"),
-        "--agent-home",
-        str(config.codex_home),
+        "--environment",
+        config.codex_environment_id,
+        "--branch",
+        config.github_ref_name,
     ]
 
     if config.run_automation:
@@ -101,6 +113,28 @@ def dispatch() -> None:
     subprocess.run(command, check=True)
 
 
+def persist_authentication() -> None:
+    """Persist refreshed Codex authentication to the consumer repository secret."""
+
+    config = PersistenceConfig()
+    authentication_path = config.codex_home / "auth.json"
+    authentication = authentication_path.read_text(encoding="utf-8")
+    parsed_authentication = json.loads(authentication)
+
+    if not isinstance(parsed_authentication, dict):
+        raise ValueError("Codex authentication must be a JSON object")
+
+    environment = os.environ.copy()
+    environment["GH_TOKEN"] = config.gh_token.get_secret_value()
+    subprocess.run(
+        ["gh", "secret", "set", "CODEX_AUTH_JSON", "--repo", config.github_repository],
+        input=authentication,
+        text=True,
+        check=True,
+        env=environment,
+    )
+
+
 def cleanup_runtime() -> None:
     """Remove temporary automation runtime directories."""
 
@@ -108,7 +142,7 @@ def cleanup_runtime() -> None:
 
     runner_temp = config.runner_temp.resolve()
 
-    for configured_path in (config.authentication_home, config.automation_workspace):
+    for configured_path in (config.authentication_home,):
         if configured_path is None:
             continue
 
@@ -134,6 +168,8 @@ if __name__ == "__main__":
                 cleanup_runtime()
             case "dispatch":
                 dispatch()
+            case "persist-authentication":
+                persist_authentication()
             case "setup-authentication":
                 setup_authentication()
             case "validate-inputs":

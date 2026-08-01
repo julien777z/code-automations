@@ -7,7 +7,7 @@ Validate and run repository-owned automations across one or more GitHub reposito
 - Repository-owned configuration, prompts, and skills
 - Configuration validation before execution
 - Manual and scheduled automation runs
-- One runner-local agent session across multiple repositories
+- One persistent Codex Cloud task across multiple repositories
 - Agent-owned pull request creation and CI monitoring, with merging only when the task explicitly requests it
 - Managed runtime dependencies
 
@@ -74,6 +74,7 @@ jobs:
           automations-file-path: automations.yaml
           prompts-directory-path: prompts
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+          codex-environment-id: ${{ vars.CODEX_ENVIRONMENT_ID }}
 ```
 
 ### Run Automations
@@ -109,12 +110,20 @@ jobs:
           prompts-directory-path: prompts
           run-automation-name: ${{ inputs.automation_name }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+          codex-environment-id: ${{ vars.CODEX_ENVIRONMENT_ID }}
           github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
 ```
 
-The action prepares an isolated checkout for every configured repository. Omit `github-token` for
-same-repository automation that can use the workflow token. Multi-repository automation should pass
-a fine-grained token with access only to the configured repositories.
+Create the coordinating environment once in the Codex Cloud UI and expose its identifier as
+`CODEX_ENVIRONMENT_ID`. Its setup and maintenance commands should install this package and run
+`prepare-workspace`; Codex does not expose a supported environment-management CLI or API. Add
+`AUTOMATION_GITHUB_TOKEN` as a setup-only environment secret and grant it access only to configured
+repositories.
+
+The action submits one persistent task that can be opened and continued in Codex. It writes refreshed
+Codex authentication back to `CODEX_AUTH_JSON` after every dispatch, so the GitHub token must also be
+able to update Actions secrets in the consumer repository. Dispatch workflows must serialize runs to
+prevent simultaneous refresh-token rotation.
 
 ## Modes
 
@@ -132,7 +141,21 @@ a fine-grained token with access only to the configured repositories.
 | `mode` | `dispatch` | Selects the `validate` or `dispatch` behavior. |
 | `run-automation-name` | `""` | Selects a manual automation; an empty value evaluates configured schedules. |
 | `codex-auth-json` | Required | Provides the authentication document required for dispatch. |
+| `codex-environment-id` | Required | Selects the coordinating Codex Cloud environment. |
 | `github-token` | `${{ github.token }}` | Clones repositories and publishes automation branches and pull requests. |
+
+## Cloud Environment Commands
+
+Use the same commands for initial setup and cached-environment maintenance, changing the Git branch
+only while testing an open producer pull request:
+
+```shell
+python -m pip install --upgrade "code-automations @ git+https://github.com/julien777z/code-automations.git@v0"
+python -m code_automations \
+  --config /workspace/code-automations/automations.yaml \
+  --prompts-directory /workspace/code-automations/prompts \
+  prepare-workspace --workspace /workspace
+```
 
 ## Alpha Releases
 

@@ -11,7 +11,6 @@ from code_automations.configuration import (
 )
 from code_automations.errors import ConfigurationError
 from code_automations.models.configuration import AutomationsConfig, ModelConfig
-from code_automations.models.runtime import PreparedRepository
 from code_automations.rendering import render_target
 
 
@@ -30,18 +29,8 @@ class TestConfiguration:
         rendered = render_target(
             loaded,
             target,
-            [
-                PreparedRepository(
-                    repository="owner/repository",
-                    branch="main",
-                    path=Path("/runner/repositories/0"),
-                ),
-                PreparedRepository(
-                    repository="owner/secondary",
-                    branch="develop",
-                    path=Path("/runner/repositories/1"),
-                ),
-            ],
+            Path("/workspace"),
+            "owner/repository",
         )
 
         assert [repository.repository for repository in target.repositories] == [
@@ -49,13 +38,14 @@ class TestConfiguration:
             "owner/secondary",
         ]
         assert target.model == ModelConfig(name="gpt-5.6-terra", reasoning_effort="high")
-        assert "/runner/repositories/0 (base branch: main)" in rendered
-        assert "/runner/repositories/1 (base branch: develop)" in rendered
+        assert f"{loaded.root} (base branch: main)" in rendered
+        assert "/workspace/repositories/" in rendered
         assert "Use the branch `automation/hello-world`" in rendered
-        assert "Do not merge any pull request" not in rendered
-        assert "Required skills" not in rendered
-        assert "example-skill" not in rendered
+        assert "Do not merge any pull request" in rendered
+        assert "Configured native skills" in rendered
+        assert "example-skill" in rendered
         assert "Be concise." not in rendered
+        assert "read and follow its root instruction file" in rendered
         assert rendered.endswith("Say hello.\n")
 
     def test_root_model_applies_without_an_automation_override(self, scheduled_configuration) -> None:
