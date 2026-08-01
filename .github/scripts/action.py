@@ -44,6 +44,7 @@ def validate_inputs() -> None:
     subprocess.run(
         ["git", "config", "--local", "--unset-all", "http.https://github.com/.extraheader"],
         check=False,
+        cwd=config.github_workspace,
     )
 
 

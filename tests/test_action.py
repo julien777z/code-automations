@@ -42,6 +42,7 @@ class TestAction:
         assert "inputs.github-token || github.token" in rendered
         assert '"--workspace",' in action_script
         assert '"--agent-home",' in action_script
+        assert "cwd=config.github_workspace" in action_script
         assert "CODEX_ENVIRONMENT_ID" not in rendered
         assert "codex_environment_id" not in config_script
         assert "scheduled dispatch is only allowed from the default branch" in config_script
