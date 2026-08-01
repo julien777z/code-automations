@@ -10,7 +10,7 @@ from code_automations.configuration import (
     resolve_targets,
 )
 from code_automations.errors import ConfigurationError
-from code_automations.models.configuration import AutomationsConfig
+from code_automations.models.configuration import AutomationsConfig, ModelConfig
 from code_automations.rendering import render_target
 
 
@@ -32,6 +32,7 @@ class TestConfiguration:
             "owner/repository",
             "owner/secondary",
         ]
+        assert target.model == ModelConfig(name="gpt-5.6-terra", reasoning_effort="high")
         assert "../repository (base branch: main)" in rendered
         assert "../secondary (base branch: develop)" in rendered
         assert "Use the branch automation/hello-world" in rendered
@@ -44,6 +45,40 @@ class TestConfiguration:
         assert "`example-skill`" in rendered
         assert "Be concise." not in rendered
         assert rendered.index("# Required skills") < rendered.index("# Prompt")
+
+    def test_root_model_applies_without_an_automation_override(self, scheduled_configuration) -> None:
+        """Use the root model for automations that do not override it."""
+
+        target = find_target(scheduled_configuration, "owner/repository", "scheduled")
+
+        assert target.model == ModelConfig(name="gpt-5.6-terra", reasoning_effort="low")
+
+    def test_global_agent_prompt_is_a_markdown_resource(self) -> None:
+        """Keep agent prompt prose out of application code."""
+
+        repository_root = Path(__file__).parents[1]
+        rendering_source = (repository_root / "src/code_automations/rendering.py").read_text(encoding="utf-8")
+        global_prompt_path = repository_root / "src/code_automations/prompts/global.md"
+        global_prompt = global_prompt_path.read_text(encoding="utf-8")
+
+        assert "Do not merge any pull request" not in rendering_source
+        assert "Do not merge any pull request" in global_prompt
+
+    def test_legacy_automation_model_is_rejected(
+        self,
+        automation_config_path: Path,
+        prompts_directory: Path,
+    ) -> None:
+        """Require the explicit per-automation override field name."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        automation_config_path.write_text(
+            configuration.replace("        model_override:", "        model:"),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigurationError, match="Extra inputs are not permitted"):
+            load_configuration(automation_config_path, prompts_directory)
 
     def test_duplicate_resolved_repositories_are_rejected(
         self,

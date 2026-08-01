@@ -10,9 +10,11 @@ class TestAction:
         """Expose only the configuration and Cloud dispatch inputs."""
 
         action_path = Path(__file__).parents[1] / "action.yml"
+        action_script_path = Path(__file__).parents[1] / ".github/scripts/action.py"
         action = yaml.safe_load(action_path.read_text(encoding="utf-8"))
         inputs = action["inputs"]
         rendered = action_path.read_text(encoding="utf-8")
+        action_script = action_script_path.read_text(encoding="utf-8")
 
         assert action["runs"]["using"] == "composite"
         assert set(inputs) == {
@@ -26,12 +28,15 @@ class TestAction:
         assert inputs["codex-environment-id"]["required"] is True
         assert "github-token" not in inputs
         assert "docker build" not in rendered
-        assert "npm ci --omit=dev --prefix" in rendered
+        assert 'case "$AUTOMATION_MODE"' not in rendered
+        assert "automation_command=(" not in rendered
+        assert 'python "$GITHUB_ACTION_PATH/.github/scripts/action.py"' in rendered
+        assert '"npm", "ci", "--omit=dev", "--prefix"' in action_script
         assert "codex cloud" not in rendered
-        assert '--environment "$CODEX_ENVIRONMENT_ID"' in rendered
-        assert '--branch "$GITHUB_REF_NAME"' in rendered
-        assert "scheduled dispatch is only allowed from the default branch" in rendered
-        assert "workflow_dispatch) ;;" in rendered
+        assert '"--environment",' in action_script
+        assert '"--branch",' in action_script
+        assert "scheduled dispatch is only allowed from the default branch" in action_script
+        assert 'event_name != "workflow_dispatch"' in action_script
 
     def test_release_workflow_publishes_v0_alpha_tags(self) -> None:
         """Publish immutable patch tags and update the moving v0 tag."""

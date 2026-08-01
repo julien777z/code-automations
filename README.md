@@ -25,6 +25,9 @@ native skill layout.
 
 ```yaml
 version: 1
+model:
+  name: gpt-5.6-sol
+  reasoning_effort: medium
 projects:
   example:
     repositories:
@@ -37,16 +40,16 @@ projects:
         prompt: hello-world
         skills:
           - example-skill
-        model:
-          name: gpt-5.6-sol
-          reasoning_effort: medium
+        model_override:
+          reasoning_effort: high
         schedule:
           cron: "0 9 * * 1" # Every Monday at 09:00 UTC
           timezone: UTC
 ```
 
 > Note: Prompt and skill references may include `.md` or omit it.
-> The model configuration is optional and defaults to `gpt-5.6-sol` with `medium` reasoning.
+> The root model configuration applies to every automation and defaults to `gpt-5.6-sol` with
+> `medium` reasoning. An automation may set `model_override` to replace either or both values.
 
 ### Validate Configuration
 

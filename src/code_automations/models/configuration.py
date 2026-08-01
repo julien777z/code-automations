@@ -154,7 +154,7 @@ class ScheduleConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    """Select the model used by one automation."""
+    """Select the model used by automations."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -169,7 +169,7 @@ class AutomationConfig(BaseModel):
 
     prompt: str
     skills: list[str] = Field(default_factory=list)
-    model: ModelConfig = Field(default_factory=ModelConfig)
+    model_override: ModelConfig | None = None
     schedule: ScheduleConfig | None = None
     enabled: bool = True
 
@@ -251,6 +251,7 @@ class AutomationsConfig(BaseSettings):
     model_config = SettingsConfigDict(extra="forbid", strict=True)
 
     version: Literal[1]
+    model: ModelConfig = Field(default_factory=ModelConfig)
     projects: dict[str, ProjectConfig] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -297,3 +298,4 @@ class AutomationTarget(BaseModel):
     project: str
     repositories: list[ResolvedRepository]
     automation: AutomationConfig
+    model: ModelConfig

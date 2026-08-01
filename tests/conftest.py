@@ -31,6 +31,9 @@ def automation_config_path(tmp_path: Path, prompts_directory: Path) -> Path:
     config_path = tmp_path / "automations.yaml"
     config_path.write_text(
         """version: 1
+model:
+  name: gpt-5.6-sol
+  reasoning_effort: high
 projects:
   example:
     repositories:
@@ -43,9 +46,8 @@ projects:
         prompt: hello-world
         skills:
           - example-skill
-        model:
+        model_override:
           name: gpt-5.6-terra
-          reasoning_effort: high
 """,
         encoding="utf-8",
     )
@@ -68,6 +70,9 @@ def scheduled_configuration(
     config_path = tmp_path / "automations.yaml"
     config_path.write_text(
         """version: 1
+model:
+  name: gpt-5.6-terra
+  reasoning_effort: low
 projects:
   example:
     repositories:

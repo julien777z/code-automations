@@ -31,6 +31,10 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Set Up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: ${{ github.action_path }}/.python-version
     - name: Validate Action Inputs
       shell: bash
       env:
@@ -42,81 +46,18 @@ runs:
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
         GITHUB_REF: ${{ github.ref }}
-      run: |
-        set -euo pipefail
-
-        case "$AUTOMATION_MODE" in
-          validate) ;;
-          dispatch)
-            case "$GITHUB_EVENT_NAME" in
-              schedule)
-                test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" || {
-                  echo "scheduled dispatch is only allowed from the default branch" >&2
-                  exit 1
-                }
-                ;;
-              workflow_dispatch) ;;
-              *)
-                echo "dispatch is only allowed for scheduled and manual workflow runs" >&2
-                exit 1
-                ;;
-            esac
-            test -n "$CODEX_AUTH_JSON" || {
-              echo "codex-auth-json is required in dispatch mode" >&2
-              exit 1
-            }
-            test -n "$CODEX_ENVIRONMENT_ID" || {
-              echo "codex-environment-id is required in dispatch mode" >&2
-              exit 1
-            }
-            ;;
-          *)
-            echo "mode must be validate or dispatch" >&2
-            exit 1
-            ;;
-        esac
-
-        workspace_root="$(realpath "$GITHUB_WORKSPACE")"
-        automation_file_path="$(realpath -m -- "$workspace_root/$AUTOMATIONS_FILE_PATH")"
-        prompts_directory_path="$(realpath -m -- "$workspace_root/$PROMPTS_DIRECTORY_PATH")"
-
-        for resolved_path in "$automation_file_path" "$prompts_directory_path"; do
-          case "$resolved_path" in
-            "$workspace_root"/*) ;;
-            *)
-              echo "automation resources must resolve inside the checked-out repository" >&2
-              exit 1
-              ;;
-          esac
-        done
-
-        test -f "$automation_file_path" || {
-          echo "automation file does not exist: $AUTOMATIONS_FILE_PATH" >&2
-          exit 1
-        }
-        test -d "$prompts_directory_path" || {
-          echo "prompt directory does not exist: $PROMPTS_DIRECTORY_PATH" >&2
-          exit 1
-        }
-        git config --local --unset-all http.https://github.com/.extraheader || true
-    - name: Set Up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version-file: ${{ github.action_path }}/.python-version
+      run: python "$GITHUB_ACTION_PATH/.github/scripts/action.py" validate-inputs
     - name: Read Node Version
       id: node-version
       shell: bash
-      run: printf 'version=%s\n' "$(cat "$GITHUB_ACTION_PATH/.nvmrc")" >> "$GITHUB_OUTPUT"
+      run: python "$GITHUB_ACTION_PATH/.github/scripts/action.py" read-node-version
     - name: Set Up Node
       uses: actions/setup-node@v4
       with:
         node-version: ${{ steps.node-version.outputs.version }}
     - name: Install Action Dependencies
       shell: bash
-      run: |
-        python -m pip install --disable-pip-version-check poetry==2.2.0
-        poetry --directory "$GITHUB_ACTION_PATH" install --only main
-        npm ci --omit=dev --prefix "$GITHUB_ACTION_PATH"
+      run: python "$GITHUB_ACTION_PATH/.github/scripts/action.py" install-dependencies
     - name: Validate Automation File
       shell: bash
       env:
@@ -133,13 +74,7 @@ runs:
       shell: bash
       env:
         CODEX_AUTH_JSON: ${{ inputs.codex-auth-json }}
-      run: |
-        authentication_home="$RUNNER_TEMP/automation-authentication"
-        install -d -m 700 "$authentication_home"
-        printf '%s' "$CODEX_AUTH_JSON" > "$authentication_home/auth.json"
-        chmod 600 "$authentication_home/auth.json"
-        unset CODEX_AUTH_JSON
-        printf 'home=%s\n' "$authentication_home" >> "$GITHUB_OUTPUT"
+      run: python "$GITHUB_ACTION_PATH/.github/scripts/action.py" setup-authentication
     - name: Run Automations
       if: inputs.mode == 'dispatch'
       shell: bash
@@ -150,26 +85,10 @@ runs:
         GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
         PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
         RUN_AUTOMATION: ${{ inputs.run-automation-name }}
-      run: |
-        export PATH="$GITHUB_ACTION_PATH/node_modules/.bin:$PATH"
-        automation_command=(
-          poetry --directory "$GITHUB_ACTION_PATH" run python -m code_automations
-          --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH"
-          --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
-          dispatch
-          --environment "$CODEX_ENVIRONMENT_ID"
-          --branch "$GITHUB_REF_NAME"
-        )
-        if [ -n "$RUN_AUTOMATION" ]; then
-          "${automation_command[@]}" --automation "$RUN_AUTOMATION"
-        else
-          schedule_arguments=()
-          if [ -n "$GITHUB_EVENT_SCHEDULE" ]; then
-            schedule_arguments=(--dispatcher-schedule "$GITHUB_EVENT_SCHEDULE")
-          fi
-          "${automation_command[@]}" --scheduled "${schedule_arguments[@]}"
-        fi
+      run: python "$GITHUB_ACTION_PATH/.github/scripts/action.py" dispatch
     - name: Remove Automation Authentication
       if: always() && inputs.mode == 'dispatch'
       shell: bash
-      run: rm -rf "${{ steps.authentication.outputs.home }}"
+      env:
+        AUTHENTICATION_HOME: ${{ steps.authentication.outputs.home }}
+      run: python "$GITHUB_ACTION_PATH/.github/scripts/action.py" cleanup-authentication

@@ -160,12 +160,19 @@ def resolve_targets(
             repositories.append(ResolvedRepository(repository=repository_name, branch=repository.branch))
 
         for name, automation in project.automations.items():
+            model = loaded.config.model.model_copy(
+                update=automation.model_override.model_dump(exclude_unset=True)
+                if automation.model_override is not None
+                else {},
+            )
+
             automation_targets.append(
                 AutomationTarget(
                     name=name,
                     project=project_name,
                     repositories=repositories,
                     automation=automation,
+                    model=model,
                 )
             )
 

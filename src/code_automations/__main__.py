@@ -81,7 +81,7 @@ def submit_target(
         environment,
         branch,
         render_target(loaded, target),
-        target.automation.model,
+        target.model,
     )
 
     report_task(summary_path, target.name, task)

@@ -15,8 +15,16 @@
           "title": "Skills",
           "type": "array"
         },
-        "model": {
-          "$ref": "#/$defs/ModelConfig"
+        "model_override": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "schedule": {
           "anyOf": [
@@ -43,7 +51,7 @@
     },
     "ModelConfig": {
       "additionalProperties": false,
-      "description": "Select the model used by one automation.",
+      "description": "Select the model used by automations.",
       "properties": {
         "name": {
           "default": "gpt-5.6-sol",
@@ -139,6 +147,9 @@
       "const": 1,
       "title": "Version",
       "type": "integer"
+    },
+    "model": {
+      "$ref": "#/$defs/ModelConfig"
     },
     "projects": {
       "additionalProperties": {
