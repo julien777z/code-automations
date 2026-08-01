@@ -73,31 +73,12 @@ def render_target(
             "Skip publication for repositories with no changes.",
             "Treat each repository independently so one repository failure does not block "
             "a successful repository.",
+            "",
+            "# System policy",
+            "",
+            "Do not merge any pull request unless the user explicitly asks you to merge it "
+            "in the task prompt above.",
         ]
     )
-
-    merge = target.automation.merge
-
-    if merge is None:
-        sections.extend(
-            [
-                "Do not merge pull requests automatically.",
-            ]
-        )
-    else:
-        workflows = ", ".join(f"`{workflow}`" for workflow in merge.workflows)
-        sections.extend(
-            [
-                f"Only these exact GitHub Actions workflows gate merging: {workflows}.",
-                "Ignore every other workflow and check conclusion when deciding whether to merge.",
-                "For each pull request, wait for every configured workflow to run against "
-                "its exact head SHA.",
-                f"Wait up to {merge.timeout_minutes} minutes for the configured workflows.",
-                "If every configured workflow succeeds, squash-merge the pull request and delete its branch.",
-                "If a configured workflow is missing, fails, is cancelled, or times out, "
-                "leave that pull request open.",
-                "Report every created, updated, merged, or blocked pull request in the final response.",
-            ]
-        )
 
     return "\n".join(sections) + "\n"

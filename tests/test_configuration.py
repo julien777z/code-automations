@@ -22,7 +22,7 @@ class TestConfiguration:
         automation_config_path: Path,
         prompts_directory: Path,
     ) -> None:
-        """Resolve repositories, fragments, and exact merge workflows."""
+        """Resolve repositories, fragments, and immutable publication policy."""
 
         loaded = load_configuration(automation_config_path, prompts_directory)
         target = find_target(loaded, "owner/repository", "hello-world")
@@ -35,8 +35,11 @@ class TestConfiguration:
         assert "../repository (base branch: main)" in rendered
         assert "../secondary (base branch: develop)" in rendered
         assert "Use the branch automation/hello-world" in rendered
-        assert "Only these exact GitHub Actions workflows gate merging: `Run Tests`." in rendered
-        assert "Ignore every other workflow" in rendered
+        assert "# System policy" in rendered
+        assert rendered.endswith(
+            "Do not merge any pull request unless the user explicitly asks you to merge it "
+            "in the task prompt above.\n"
+        )
         assert "# Required skills" in rendered
         assert "`example-skill`" in rendered
         assert "Be concise." not in rendered
@@ -60,20 +63,23 @@ class TestConfiguration:
         with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
             resolve_targets(loaded, "owner/repository")
 
-    def test_duplicate_merge_workflows_are_rejected(
+    def test_merge_configuration_is_rejected(
         self,
         automation_config_path: Path,
         prompts_directory: Path,
     ) -> None:
-        """Reject ambiguous repeated workflow gates."""
+        """Keep pull request merging outside consumer configuration."""
 
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
-            configuration.replace("- Run Tests", "- Run Tests\n            - Run Tests"),
+            configuration.replace(
+                "        prompt: hello-world",
+                "        prompt: hello-world\n        merge:\n          workflows:\n            - Run Tests",
+            ),
             encoding="utf-8",
         )
 
-        with pytest.raises(ConfigurationError, match="must be unique"):
+        with pytest.raises(ConfigurationError, match="Extra inputs are not permitted"):
             load_configuration(automation_config_path, prompts_directory)
 
     @pytest.mark.parametrize("reference", ["../secret", "/secret", "foo\\bar", "foo//bar"])

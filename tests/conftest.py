@@ -46,11 +46,6 @@ projects:
         model:
           name: gpt-5.6-terra
           reasoning_effort: high
-        merge:
-          workflows:
-            - Run Tests
-          method: squash
-          timeout_minutes: 120
 """,
         encoding="utf-8",
     )

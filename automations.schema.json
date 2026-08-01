@@ -29,17 +29,6 @@
           ],
           "default": null
         },
-        "merge": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MergeConfig"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "enabled": {
           "default": true,
           "title": "Enabled",
@@ -50,38 +39,6 @@
         "prompt"
       ],
       "title": "AutomationConfig",
-      "type": "object"
-    },
-    "MergeConfig": {
-      "additionalProperties": false,
-      "description": "Define automatic pull request merge behavior.",
-      "properties": {
-        "workflows": {
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "title": "Workflows",
-          "type": "array"
-        },
-        "method": {
-          "const": "squash",
-          "default": "squash",
-          "title": "Method",
-          "type": "string"
-        },
-        "timeout_minutes": {
-          "default": 120,
-          "maximum": 180,
-          "minimum": 1,
-          "title": "Timeout Minutes",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "workflows"
-      ],
-      "title": "MergeConfig",
       "type": "object"
     },
     "ModelConfig": {

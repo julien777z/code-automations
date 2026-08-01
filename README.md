@@ -8,7 +8,7 @@ Validate and run repository-owned automations across one or more GitHub reposito
 - Configuration validation before execution
 - Manual and scheduled automation runs
 - One coordinating Codex Cloud task across multiple repositories
-- Agent-owned pull request creation, CI monitoring, and optional merging
+- Agent-owned pull request creation and CI monitoring, with merging only when the task explicitly requests it
 - Managed runtime dependencies
 
 ## Examples
@@ -43,11 +43,6 @@ projects:
         schedule:
           cron: "0 9 * * 1" # Every Monday at 09:00 UTC
           timezone: UTC
-        merge:
-          workflows:
-            - Run Tests
-          method: squash
-          timeout_minutes: 120
 ```
 
 > Note: Prompt and skill references may include `.md` or omit it.
@@ -125,7 +120,7 @@ environment when an automation should publish pull requests.
 | Mode | Behavior |
 | --- | --- |
 | `validate` | Validates the automation configuration and referenced prompt and skill files. |
-| `dispatch` | Runs `run-automation-name` when provided; otherwise runs automations scheduled for the current minute. |
+| `dispatch` | Runs `run-automation-name` when provided; otherwise runs automations scheduled for the current minute. Pull requests remain open unless the task prompt explicitly requests merging. |
 
 ## Inputs
 
