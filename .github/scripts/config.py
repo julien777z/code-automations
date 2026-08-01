@@ -50,13 +50,14 @@ class DispatchConfig(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore", frozen=True)
 
     automations_file_path: Path
-    codex_environment_id: str
+    codex_home: Path
+    gh_token: SecretStr
     github_action_path: Path
     github_event_schedule: str = ""
-    github_ref_name: str
     github_workspace: Path
     path: str
     prompts_directory_path: Path
+    runner_temp: Path
     run_automation: str = ""
 
 
@@ -65,5 +66,6 @@ class CleanupConfig(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore", frozen=True)
 
+    automation_workspace: Path | None = None
     authentication_home: Path | None = None
     runner_temp: Path

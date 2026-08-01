@@ -4,39 +4,29 @@ import pytest
 
 from code_automations.__main__ import run
 from code_automations.models.configuration import ModelConfig
-from code_automations.models.runtime import CliArguments, CloudTask
+from code_automations.models.runtime import CliArguments
 
 
 class TestRuntime:
     """Test command-line dispatch orchestration."""
 
-    def test_manual_dispatch_submits_and_waits(
+    def test_manual_dispatch_runs_selected_target_locally(
         self,
         automation_config_path: Path,
         prompts_directory: Path,
+        tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Launch and monitor the selected automation."""
+        """Prepare and run the selected automation on the runner."""
 
-        task = CloudTask(
-            task_id="task_example",
-            url="https://chatgpt.com/codex/tasks/task_example",
-        )
-        submissions: list[tuple[str, str, str, ModelConfig]] = []
-        waits: list[str] = []
+        runs: list[tuple[str, ModelConfig, Path, Path]] = []
 
-        def submit(environment: str, branch: str, prompt: str, model: ModelConfig) -> CloudTask:
-            """Capture one Cloud submission."""
+        def run_selected(loaded, target, workspace, agent_home, summary_path) -> None:
+            """Capture one local automation run."""
 
-            submissions.append((environment, branch, prompt, model))
+            runs.append((target.name, target.model, workspace, agent_home))
 
-            return task
-
-        monkeypatch.setattr("code_automations.__main__.submit_cloud_task", submit)
-        monkeypatch.setattr(
-            "code_automations.__main__.wait_for_cloud_task",
-            lambda received, timeout: waits.append(received.task_id),
-        )
+        monkeypatch.setattr("code_automations.__main__.run_target", run_selected)
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repository")
 
         result = run(
@@ -45,21 +35,26 @@ class TestRuntime:
                 prompts_directory=prompts_directory,
                 command="dispatch",
                 automation="hello-world",
-                environment="environment_example",
-                branch="alpha",
+                workspace=tmp_path / "workspace",
+                agent_home=tmp_path / "agent-home",
             )
         )
 
         assert result == 0
-        assert submissions[0][:2] == ("environment_example", "alpha")
-        assert "Say hello." in submissions[0][2]
-        assert submissions[0][3] == ModelConfig(name="gpt-5.6-terra", reasoning_effort="high")
-        assert waits == ["task_example"]
+        assert runs == [
+            (
+                "hello-world",
+                ModelConfig(name="gpt-5.6-terra", reasoning_effort="high"),
+                tmp_path / "workspace",
+                tmp_path / "agent-home",
+            )
+        ]
 
     def test_scheduled_dispatch_uses_dispatcher_occurrence(
         self,
         scheduled_configuration,
         prompts_directory: Path,
+        tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Evaluate delayed workflow events at their scheduled instant."""
@@ -69,8 +64,8 @@ class TestRuntime:
 
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repository")
         monkeypatch.setattr(
-            "code_automations.__main__.submit_target",
-            lambda loaded, target, environment, branch, timeout, summary_path: submitted.append(target.name),
+            "code_automations.__main__.run_target",
+            lambda loaded, target, workspace, agent_home, summary_path: submitted.append(target.name),
         )
 
         result = run(
@@ -81,8 +76,8 @@ class TestRuntime:
                 scheduled=True,
                 now="2025-07-15T18:05:00Z",
                 dispatcher_schedule="0 * * * *",
-                environment="environment_example",
-                branch="main",
+                workspace=tmp_path / "workspace",
+                agent_home=tmp_path / "agent-home",
             )
         )
 

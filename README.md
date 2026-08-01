@@ -7,7 +7,7 @@ Validate and run repository-owned automations across one or more GitHub reposito
 - Repository-owned configuration, prompts, and skills
 - Configuration validation before execution
 - Manual and scheduled automation runs
-- One coordinating Codex Cloud task across multiple repositories
+- One runner-local agent session across multiple repositories
 - Agent-owned pull request creation and CI monitoring, with merging only when the task explicitly requests it
 - Managed runtime dependencies
 
@@ -19,9 +19,8 @@ Define projects, repositories, prompts, skills, and optional schedules in an aut
 This example runs `hello-world` every Monday at 09:00 UTC across the current repository and
 `owner/related-repository`.
 
-Skills are canonical Agent Skills under `.agents/skills/<name>/SKILL.md`. The Cloud environment
-should run Agent Sync during setup and maintenance so each supported coding agent receives its
-native skill layout.
+Skills are canonical Agent Skills under `.agents/skills/<name>/SKILL.md`. The action uses Agent Sync
+to make selected skills available through the agent's native skill layout.
 
 ```yaml
 version: 1
@@ -73,7 +72,6 @@ jobs:
         with:
           mode: validate
           automations-file-path: automations.yaml
-          codex-environment-id: ${{ vars.CODEX_ENVIRONMENT_ID }}
           prompts-directory-path: prompts
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
 ```
@@ -111,12 +109,12 @@ jobs:
           prompts-directory-path: prompts
           run-automation-name: ${{ inputs.automation_name }}
           codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
-          codex-environment-id: ${{ vars.CODEX_ENVIRONMENT_ID }}
+          github-token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
 ```
 
-The Cloud environment must prepare each configured repository as a sibling directory named after
-the repository, such as `../related-repository`. Configure Git and `gh` authentication inside that
-environment when an automation should publish pull requests.
+The action prepares an isolated checkout for every configured repository. Omit `github-token` for
+same-repository automation that can use the workflow token. Multi-repository automation should pass
+a fine-grained token with access only to the configured repositories.
 
 ## Modes
 
@@ -134,7 +132,7 @@ environment when an automation should publish pull requests.
 | `mode` | `dispatch` | Selects the `validate` or `dispatch` behavior. |
 | `run-automation-name` | `""` | Selects a manual automation; an empty value evaluates configured schedules. |
 | `codex-auth-json` | Required | Provides the authentication document required for dispatch. |
-| `codex-environment-id` | Required | Selects the coordinating Codex Cloud environment. |
+| `github-token` | `${{ github.token }}` | Clones repositories and publishes automation branches and pull requests. |
 
 ## Alpha Releases
 

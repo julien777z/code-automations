@@ -11,40 +11,52 @@ from code_automations.configuration import (
 )
 from code_automations.errors import ConfigurationError
 from code_automations.models.configuration import AutomationsConfig, ModelConfig
+from code_automations.models.runtime import PreparedRepository
 from code_automations.rendering import render_target
 
 
 class TestConfiguration:
     """Test configuration loading, schema, and prompt rendering."""
 
-    def test_valid_configuration_renders_cloud_publication_contract(
+    def test_valid_configuration_renders_local_publication_task(
         self,
         automation_config_path: Path,
         prompts_directory: Path,
     ) -> None:
-        """Resolve repositories, fragments, and immutable publication policy."""
+        """Resolve repositories, prepared paths, and task instructions."""
 
         loaded = load_configuration(automation_config_path, prompts_directory)
         target = find_target(loaded, "owner/repository", "hello-world")
-        rendered = render_target(loaded, target)
+        rendered = render_target(
+            loaded,
+            target,
+            [
+                PreparedRepository(
+                    repository="owner/repository",
+                    branch="main",
+                    path=Path("/runner/repositories/0"),
+                ),
+                PreparedRepository(
+                    repository="owner/secondary",
+                    branch="develop",
+                    path=Path("/runner/repositories/1"),
+                ),
+            ],
+        )
 
         assert [repository.repository for repository in target.repositories] == [
             "owner/repository",
             "owner/secondary",
         ]
         assert target.model == ModelConfig(name="gpt-5.6-terra", reasoning_effort="high")
-        assert "../repository (base branch: main)" in rendered
-        assert "../secondary (base branch: develop)" in rendered
-        assert "Use the branch automation/hello-world" in rendered
-        assert "# System policy" in rendered
-        assert rendered.endswith(
-            "Do not merge any pull request unless the user explicitly asks you to merge it "
-            "in the task prompt above.\n"
-        )
-        assert "# Required skills" in rendered
-        assert "`example-skill`" in rendered
+        assert "/runner/repositories/0 (base branch: main)" in rendered
+        assert "/runner/repositories/1 (base branch: develop)" in rendered
+        assert "Use the branch `automation/hello-world`" in rendered
+        assert "Do not merge any pull request" not in rendered
+        assert "Required skills" not in rendered
+        assert "example-skill" not in rendered
         assert "Be concise." not in rendered
-        assert rendered.index("# Required skills") < rendered.index("# Prompt")
+        assert rendered.endswith("Say hello.\n")
 
     def test_root_model_applies_without_an_automation_override(self, scheduled_configuration) -> None:
         """Use the root model for automations that do not override it."""
@@ -58,11 +70,11 @@ class TestConfiguration:
 
         repository_root = Path(__file__).parents[1]
         rendering_source = (repository_root / "src/code_automations/rendering.py").read_text(encoding="utf-8")
-        global_prompt_path = repository_root / "src/code_automations/prompts/global.md"
-        global_prompt = global_prompt_path.read_text(encoding="utf-8")
+        global_rule_path = repository_root / "src/code_automations/prompts/global.md"
+        global_rule = global_rule_path.read_text(encoding="utf-8")
 
         assert "Do not merge any pull request" not in rendering_source
-        assert "Do not merge any pull request" in global_prompt
+        assert "Do not merge any pull request" in global_rule
 
     def test_legacy_automation_model_is_rejected(
         self,
@@ -113,10 +125,7 @@ class TestConfiguration:
 
         loaded = load_configuration(automation_config_path, prompts_directory)
         target = find_target(loaded, "owner/repository", "hello-world")
-        rendered = render_target(loaded, target)
-
         assert target.repositories[1].repository == "not-a-github-repository"
-        assert "../not-a-github-repository" in rendered
 
     def test_merge_configuration_is_rejected(
         self,

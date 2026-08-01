@@ -12,7 +12,7 @@ from pydantic import ValidationError
 logger = logging.getLogger(__name__)
 
 ACTION_COMMANDS: Final[tuple[str, ...]] = (
-    "cleanup-authentication",
+    "cleanup-runtime",
     "dispatch",
     "setup-authentication",
     "validate-inputs",
@@ -83,10 +83,10 @@ def dispatch() -> None:
         "--prompts-directory",
         str(config.github_workspace / config.prompts_directory_path),
         "dispatch",
-        "--environment",
-        config.codex_environment_id,
-        "--branch",
-        config.github_ref_name,
+        "--workspace",
+        str(config.runner_temp / "code-automations-workspace"),
+        "--agent-home",
+        str(config.codex_home),
     ]
 
     if config.run_automation:
@@ -100,22 +100,24 @@ def dispatch() -> None:
     subprocess.run(command, check=True)
 
 
-def cleanup_authentication() -> None:
-    """Remove the temporary Codex authentication directory."""
+def cleanup_runtime() -> None:
+    """Remove temporary automation runtime directories."""
 
     config = CleanupConfig()
 
-    if config.authentication_home is None:
-        return
-
     runner_temp = config.runner_temp.resolve()
-    authentication_home = config.authentication_home.resolve()
 
-    if authentication_home == runner_temp or not authentication_home.is_relative_to(runner_temp):
-        raise ValueError("authentication directory must resolve inside the runner temporary directory")
+    for configured_path in (config.authentication_home, config.automation_workspace):
+        if configured_path is None:
+            continue
 
-    if authentication_home.exists():
-        shutil.rmtree(authentication_home)
+        runtime_path = configured_path.resolve()
+
+        if runtime_path == runner_temp or not runtime_path.is_relative_to(runner_temp):
+            raise ValueError("runtime directory must resolve inside the runner temporary directory")
+
+        if runtime_path.exists():
+            shutil.rmtree(runtime_path)
 
 
 if __name__ == "__main__":
@@ -127,8 +129,8 @@ if __name__ == "__main__":
 
     try:
         match arguments.command:
-            case "cleanup-authentication":
-                cleanup_authentication()
+            case "cleanup-runtime":
+                cleanup_runtime()
             case "dispatch":
                 dispatch()
             case "setup-authentication":

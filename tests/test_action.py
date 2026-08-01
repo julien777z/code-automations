@@ -6,8 +6,8 @@ import yaml
 class TestAction:
     """Test the reusable GitHub Action contract."""
 
-    def test_composite_action_launches_codex_cloud(self) -> None:
-        """Expose only the configuration and Cloud dispatch inputs."""
+    def test_composite_action_launches_local_agent(self) -> None:
+        """Expose runner-local dispatch inputs with a GitHub token fallback."""
 
         action_path = Path(__file__).parents[1] / "action.yml"
         action_script_path = Path(__file__).parents[1] / ".github/scripts/action.py"
@@ -24,13 +24,13 @@ class TestAction:
         assert set(inputs) == {
             "automations-file-path",
             "codex-auth-json",
-            "codex-environment-id",
+            "github-token",
             "mode",
             "prompts-directory-path",
             "run-automation-name",
         }
-        assert inputs["codex-environment-id"]["required"] is True
-        assert "github-token" not in inputs
+        assert inputs["github-token"]["required"] is False
+        assert inputs["github-token"]["default"] == ""
         assert "docker build" not in rendered
         assert 'case "$AUTOMATION_MODE"' not in rendered
         assert "automation_command=(" not in rendered
@@ -39,8 +39,11 @@ class TestAction:
         assert "environment_value" not in action_script
         assert "BaseSettings" in config_script
         assert "codex cloud" not in rendered
-        assert '"--environment",' in action_script
-        assert '"--branch",' in action_script
+        assert "inputs.github-token || github.token" in rendered
+        assert '"--workspace",' in action_script
+        assert '"--agent-home",' in action_script
+        assert "CODEX_ENVIRONMENT_ID" not in rendered
+        assert "codex_environment_id" not in config_script
         assert "scheduled dispatch is only allowed from the default branch" in config_script
         assert 'github_event_name != "workflow_dispatch"' in config_script
 

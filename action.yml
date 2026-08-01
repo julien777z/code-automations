@@ -24,9 +24,10 @@ inputs:
   codex-auth-json:
     description: Complete Codex authentication document required to run automations.
     required: true
-  codex-environment-id:
-    description: Codex Cloud environment used for coordinating configured repositories.
-    required: true
+  github-token:
+    description: GitHub token used to clone repositories and publish pull requests.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -83,15 +84,16 @@ runs:
       shell: bash
       env:
         AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
-        CODEX_ENVIRONMENT_ID: ${{ inputs.codex-environment-id }}
         CODEX_HOME: ${{ steps.authentication.outputs.home }}
+        GH_TOKEN: ${{ inputs.github-token || github.token }}
         GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
         PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
         RUN_AUTOMATION: ${{ inputs.run-automation-name }}
       run: poetry --directory "$GITHUB_ACTION_PATH" run python "$GITHUB_ACTION_PATH/.github/scripts/action.py" dispatch
-    - name: Remove Automation Authentication
+    - name: Remove Automation Runtime
       if: always() && inputs.mode == 'dispatch'
       shell: bash
       env:
+        AUTOMATION_WORKSPACE: ${{ runner.temp }}/code-automations-workspace
         AUTHENTICATION_HOME: ${{ steps.authentication.outputs.home }}
-      run: poetry --directory "$GITHUB_ACTION_PATH" run python "$GITHUB_ACTION_PATH/.github/scripts/action.py" cleanup-authentication
+      run: poetry --directory "$GITHUB_ACTION_PATH" run python "$GITHUB_ACTION_PATH/.github/scripts/action.py" cleanup-runtime

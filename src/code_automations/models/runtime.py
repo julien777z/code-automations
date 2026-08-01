@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 __all__: Final[tuple[str, ...]] = (
     "ActionsContext",
     "CliArguments",
-    "CloudTask",
     "DueAutomation",
+    "PreparedRepository",
 )
 
 
@@ -37,18 +37,18 @@ class CliArguments(BaseModel):
     scheduled: bool = False
     now: str | None = None
     dispatcher_schedule: str | None = None
-    environment: str | None = None
-    branch: str | None = None
-    task_timeout_minutes: int = 150
+    workspace: Path | None = None
+    agent_home: Path | None = None
 
 
-class CloudTask(BaseModel):
-    """Identify one submitted Codex Cloud task."""
+class PreparedRepository(BaseModel):
+    """Describe one repository prepared for an automation session."""
 
     model_config = ConfigDict(frozen=True)
 
-    task_id: str
-    url: HttpUrl
+    repository: str
+    branch: str
+    path: Path
 
 
 class DueAutomation(BaseModel):
