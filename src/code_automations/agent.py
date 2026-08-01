@@ -71,15 +71,13 @@ def clone_repositories(target: AutomationTarget, workspace_root: Path) -> list[P
 
         run_command(
             [
-                "gh",
-                "repo",
+                "git",
                 "clone",
-                repository.repository,
-                str(path),
-                "--",
                 "--branch",
                 repository.branch,
                 "--single-branch",
+                f"https://github.com/{repository.repository}.git",
+                str(path),
             ]
         )
         prepared.append(

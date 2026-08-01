@@ -46,10 +46,24 @@ class TestAgent:
         repositories = clone_repositories(target, tmp_path / "workspace")
 
         assert [repository.path.name for repository in repositories] == ["0", "1"]
-        assert ["--branch", "main", "--single-branch"] == commands[0][-3:]
-        assert ["--branch", "develop", "--single-branch"] == commands[1][-3:]
-        assert "owner/repository" in commands[0]
-        assert "owner/secondary" in commands[1]
+        assert commands[0] == [
+            "git",
+            "clone",
+            "--branch",
+            "main",
+            "--single-branch",
+            "https://github.com/owner/repository.git",
+            str(tmp_path / "workspace/repositories/0"),
+        ]
+        assert commands[1] == [
+            "git",
+            "clone",
+            "--branch",
+            "develop",
+            "--single-branch",
+            "https://github.com/owner/secondary.git",
+            str(tmp_path / "workspace/repositories/1"),
+        ]
 
     def test_materialize_skills_copies_selected_native_skill(
         self,
