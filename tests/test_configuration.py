@@ -98,6 +98,26 @@ class TestConfiguration:
         with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
             resolve_targets(loaded, "owner/repository")
 
+    def test_repository_names_are_deferred_to_github(
+        self,
+        automation_config_path: Path,
+        prompts_directory: Path,
+    ) -> None:
+        """Leave repository identifier validation to GitHub."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        automation_config_path.write_text(
+            configuration.replace("owner/secondary:", "not-a-github-repository:"),
+            encoding="utf-8",
+        )
+
+        loaded = load_configuration(automation_config_path, prompts_directory)
+        target = find_target(loaded, "owner/repository", "hello-world")
+        rendered = render_target(loaded, target)
+
+        assert target.repositories[1].repository == "not-a-github-repository"
+        assert "../not-a-github-repository" in rendered
+
     def test_merge_configuration_is_rejected(
         self,
         automation_config_path: Path,

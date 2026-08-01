@@ -18,7 +18,6 @@ __all__: Final[tuple[str, ...]] = (
     "LoadedConfiguration",
     "ModelConfig",
     "ProjectConfig",
-    "REPOSITORY_PATTERN",
     "RepositoryConfig",
     "ResolvedRepository",
     "ScheduleConfig",
@@ -27,11 +26,6 @@ __all__: Final[tuple[str, ...]] = (
     "validate_reference",
 )
 
-REPOSITORY_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^(?![A-Za-z0-9-]*--)[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/"
-    r"(?!(?:\.{1,2}|[A-Za-z0-9._-]*\.git)$)[A-Za-z0-9._-]{1,100}$",
-    re.IGNORECASE,
-)
 AUTOMATION_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 CRON_FIELD_BOUNDS: Final[tuple[tuple[int, int], ...]] = ((0, 59), (0, 23), (1, 31), (1, 12), (0, 7))
 
@@ -210,21 +204,6 @@ class ProjectConfig(BaseModel):
 
     repositories: dict[str, RepositoryConfig] = Field(min_length=1)
     automations: dict[str, AutomationConfig] = Field(min_length=1)
-
-    @field_validator("repositories")
-    @classmethod
-    def validate_repository_names(cls, value: dict[str, RepositoryConfig]) -> dict[str, RepositoryConfig]:
-        """Validate configured repository identifiers."""
-
-        invalid_name = next(
-            (name for name in value if name != "self" and not REPOSITORY_PATTERN.fullmatch(name)),
-            None,
-        )
-
-        if invalid_name is not None:
-            raise ValueError(f"invalid repository identifier: {invalid_name}")
-
-        return value
 
     @field_validator("automations")
     @classmethod

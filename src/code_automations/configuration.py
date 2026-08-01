@@ -13,7 +13,6 @@ from pydantic_settings import YamlConfigSettingsSource
 
 from code_automations.errors import ConfigurationError
 from code_automations.models.configuration import (
-    REPOSITORY_PATTERN,
     AutomationsConfig,
     AutomationTarget,
     LoadedConfiguration,
@@ -106,9 +105,6 @@ def resolve_self_repository(
         return None
 
     if github_repository is not None:
-        if not REPOSITORY_PATTERN.fullmatch(github_repository):
-            raise ConfigurationError("GITHUB_REPOSITORY is not a valid owner/repository identifier")
-
         return github_repository
 
     result = subprocess.run(
@@ -124,7 +120,7 @@ def resolve_self_repository(
 
     match = GITHUB_ORIGIN_PATTERN.search(result.stdout.strip())
 
-    if match is None or not REPOSITORY_PATTERN.fullmatch(match.group(1)):
+    if match is None:
         raise ConfigurationError("origin is not a supported GitHub repository URL")
 
     return match.group(1)

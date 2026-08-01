@@ -20,7 +20,7 @@ def render_target(
     """Render one self-publishing Cloud automation prompt."""
 
     repositories = "\n".join(
-        f"  - {repository.repository}: ../{repository.repository.rsplit('/', maxsplit=1)[1]} "
+        f"  - {repository.repository}: ../{repository.repository.rsplit('/', maxsplit=1)[-1]} "
         f"(base branch: {repository.branch})"
         for repository in target.repositories
     )
