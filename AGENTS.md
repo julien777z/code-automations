@@ -10,6 +10,7 @@ The canonical project rules live in `.agents/rules/`.
 
 ## Workflows
 
+- Keep `run` steps declarative. Invoke checked-in scripts for control flow, validation, filesystem changes, or other implementation logic instead of embedding arbitrary shell or program code in workflow YAML; place those scripts under `.github/scripts/` and prefer Python.
 - Do not hard-code runtime versions when a shared action, reusable workflow, or repository version file supplies them; omit `python-version` when shared Python automation provides it, and use `node-version-file: ".nvmrc"` for Node.js workflows.
 - Do not add glue steps that only read versions or forward setup data. Pass repository-owned version files and inputs directly to the action that uses them whenever supported.
 - Keep workflow files concise: merge related setup and dependency commands into one clearly named generic step when their execution order and conditions allow it. Do not split tool or package installation into separate steps merely by dependency.
@@ -58,6 +59,20 @@ The canonical project rules live in `.agents/rules/`.
 ## Guardrails
 
 - Never commit or push agent-authored changes directly to the default branch. If the checkout is on the default branch or detached, create a descriptive non-default branch; otherwise retain the current branch and deliver through its pull request.
+
+<!-- Source: .agents/rules/global.md -->
+
+# Global Rules
+
+## Agent Prompts
+
+- In repositories that provide an agent CLI or otherwise interact with agents, store every agent prompt in a dedicated Markdown file rather than inline in application code so it is easy to find, review, and maintain. Application code may load a prompt file and interpolate runtime values into it.
+
+## User Approvals
+
+- After initiating an approval that requires user interaction, wait up to 10 minutes without polling or interacting with the approval surface.
+- Treat it as failed only after that window or an explicit failure from the user.
+- A failure is not approval; wait until the user resumes the task before prompting again.
 
 <!-- Source: .agents/rules/poetry.md -->
 
