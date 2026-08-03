@@ -2,23 +2,29 @@
   "$defs": {
     "AutomationConfig": {
       "additionalProperties": false,
-      "description": "Define one Cloud automation.",
+      "description": "Define one automation.",
       "properties": {
-        "attempts": {
-          "default": 1,
-          "maximum": 4,
-          "minimum": 1,
-          "title": "Attempts",
-          "type": "integer"
-        },
-        "enabled": {
-          "default": true,
-          "title": "Enabled",
-          "type": "boolean"
-        },
         "prompt": {
           "title": "Prompt",
           "type": "string"
+        },
+        "skills": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Skills",
+          "type": "array"
+        },
+        "model_override": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "schedule": {
           "anyOf": [
@@ -31,12 +37,10 @@
           ],
           "default": null
         },
-        "skills": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Skills",
-          "type": "array"
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
         }
       },
       "required": [
@@ -45,10 +49,47 @@
       "title": "AutomationConfig",
       "type": "object"
     },
-    "RepositoryConfig": {
+    "ModelConfig": {
       "additionalProperties": false,
-      "description": "Group automations for one repository and Cloud environment.",
+      "description": "Select the model used by automations.",
       "properties": {
+        "name": {
+          "default": "gpt-5.6-sol",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "default": "medium",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra"
+          ],
+          "title": "Reasoning Effort",
+          "type": "string"
+        }
+      },
+      "title": "ModelConfig",
+      "type": "object"
+    },
+    "ProjectConfig": {
+      "additionalProperties": false,
+      "description": "Group repositories and automations for one project.",
+      "properties": {
+        "repositories": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RepositoryConfig"
+          },
+          "minProperties": 1,
+          "title": "Repositories",
+          "type": "object"
+        },
         "automations": {
           "additionalProperties": {
             "$ref": "#/$defs/AutomationConfig"
@@ -56,30 +97,25 @@
           "minProperties": 1,
           "title": "Automations",
           "type": "object"
-        },
+        }
+      },
+      "required": [
+        "repositories",
+        "automations"
+      ],
+      "title": "ProjectConfig",
+      "type": "object"
+    },
+    "RepositoryConfig": {
+      "additionalProperties": false,
+      "description": "Configure one repository within a project.",
+      "properties": {
         "branch": {
           "default": "main",
           "title": "Branch",
           "type": "string"
-        },
-        "environment": {
-          "anyOf": [
-            {
-              "maxLength": 64,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Environment"
         }
       },
-      "required": [
-        "automations"
-      ],
       "title": "RepositoryConfig",
       "type": "object"
     },
@@ -107,23 +143,26 @@
   "additionalProperties": false,
   "description": "Define the complete automation configuration.",
   "properties": {
-    "repositories": {
-      "additionalProperties": {
-        "$ref": "#/$defs/RepositoryConfig"
-      },
-      "minProperties": 1,
-      "title": "Repositories",
-      "type": "object"
-    },
     "version": {
       "const": 1,
       "title": "Version",
       "type": "integer"
+    },
+    "model": {
+      "$ref": "#/$defs/ModelConfig"
+    },
+    "projects": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ProjectConfig"
+      },
+      "minProperties": 1,
+      "title": "Projects",
+      "type": "object"
     }
   },
   "required": [
     "version",
-    "repositories"
+    "projects"
   ],
   "title": "AutomationsConfig",
   "type": "object"

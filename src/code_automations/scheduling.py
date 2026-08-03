@@ -1,13 +1,20 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Final
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
-from cloud_automations.models.configuration import AutomationTarget, ScheduleConfig
-from cloud_automations.models.dispatching import AutomationState, DueAutomation
+from code_automations.models.configuration import AutomationTarget, ScheduleConfig
+from code_automations.models.runtime import DueAutomation
 
-__all__: Final[tuple[str, ...]] = ("due_automations", "latest_occurrence")
+logger = logging.getLogger(__name__)
+
+__all__: Final[tuple[str, ...]] = (
+    "dispatcher_occurrence",
+    "due_automations",
+    "latest_occurrence",
+)
 
 
 def local_occurrence_to_utc(occurrence: datetime, timezone: ZoneInfo) -> datetime | None:
@@ -46,16 +53,22 @@ def latest_occurrence(schedule: ScheduleConfig, now: datetime) -> datetime:
     return previous_instant
 
 
-def due_automations(
-    automation_targets: list[AutomationTarget], state: AutomationState, now: datetime
-) -> list[DueAutomation]:
-    """Find latest missed occurrences within the 24-hour catch-up window."""
+def dispatcher_occurrence(cron: str, now: datetime) -> datetime:
+    """Resolve the scheduled workflow occurrence represented by one event."""
+
+    schedule = ScheduleConfig(cron=cron, timezone="UTC")
+
+    return latest_occurrence(schedule, now)
+
+
+def due_automations(automation_targets: list[AutomationTarget], now: datetime) -> list[DueAutomation]:
+    """Find enabled automations scheduled for the current minute."""
 
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
 
     current = now.astimezone(UTC)
-    window_start = current - timedelta(hours=24)
+    current_minute = current.replace(second=0, microsecond=0)
     due: list[DueAutomation] = []
 
     for target in automation_targets:
@@ -63,11 +76,9 @@ def due_automations(
 
         if schedule is None or not target.automation.enabled:
             continue
-        occurrence = latest_occurrence(schedule, current)
-        successful = state.successful.get(target.name)
-        since = max(window_start, successful.astimezone(UTC)) if successful is not None else window_start
 
-        if occurrence > since:
-            due.append(DueAutomation(target=target, scheduled_for=occurrence))
+        occurrence = latest_occurrence(schedule, current)
+        if occurrence == current_minute:
+            due.append(DueAutomation(name=target.name, scheduled_for=occurrence))
 
     return due

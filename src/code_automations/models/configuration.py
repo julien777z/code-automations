@@ -1,3 +1,4 @@
+import logging
 import re
 from pathlib import Path, PurePosixPath
 from typing import Final, Literal, Self
@@ -5,6 +6,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 __all__: Final[tuple[str, ...]] = (
     "AUTOMATION_PATTERN",
@@ -12,17 +16,16 @@ __all__: Final[tuple[str, ...]] = (
     "AutomationTarget",
     "AutomationsConfig",
     "LoadedConfiguration",
-    "REPOSITORY_PATTERN",
+    "ModelConfig",
+    "ProjectConfig",
     "RepositoryConfig",
+    "ResolvedRepository",
     "ScheduleConfig",
     "validate_branch",
     "validate_cron_field",
     "validate_reference",
 )
 
-REPOSITORY_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^(?![A-Za-z0-9-]*--)[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[A-Za-z0-9._-]{1,100}$"
-)
 AUTOMATION_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 CRON_FIELD_BOUNDS: Final[tuple[tuple[int, int], ...]] = ((0, 59), (0, 23), (1, 31), (1, 12), (0, 7))
 
@@ -30,8 +33,8 @@ CRON_FIELD_BOUNDS: Final[tuple[tuple[int, int], ...]] = ((0, 59), (0, 23), (1, 3
 def validate_reference(value: str) -> str:
     """Validate a prompt or skill reference."""
 
-    if not value or value.endswith(".md") or "\\" in value or "//" in value or value.endswith("/"):
-        raise ValueError("references must omit .md and use forward-slash relative paths")
+    if not value or "\\" in value or "//" in value or value.endswith("/"):
+        raise ValueError("references must use forward-slash relative paths")
 
     path = PurePosixPath(value)
 
@@ -53,11 +56,15 @@ def validate_branch(value: str) -> str:
         or value.startswith(("-", ".", "/"))
         or value.endswith((".", "/", ".lock"))
         or value == "@"
+        or value == "HEAD"
         or ".." in value
         or "@{" in value
         or "//" in value
         or "\\" in value
-        or any(character.isspace() or ord(character) < 32 or character in "~^:?*[" for character in value)
+        or any(
+            character.isspace() or ord(character) < 32 or ord(character) == 127 or character in "~^:?*["
+            for character in value
+        )
     )
 
     if invalid:
@@ -140,14 +147,23 @@ class ScheduleConfig(BaseModel):
         return value
 
 
+class ModelConfig(BaseModel):
+    """Select the model used by automations."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    name: str = Field(default="gpt-5.6-sol", min_length=1)
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] = "medium"
+
+
 class AutomationConfig(BaseModel):
-    """Define one Cloud automation."""
+    """Define one automation."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
     prompt: str
     skills: list[str] = Field(default_factory=list)
-    attempts: int = Field(default=1, ge=1, le=4)
+    model_override: ModelConfig | None = None
     schedule: ScheduleConfig | None = None
     enabled: bool = True
 
@@ -167,23 +183,11 @@ class AutomationConfig(BaseModel):
 
 
 class RepositoryConfig(BaseModel):
-    """Group automations for one repository and Cloud environment."""
+    """Configure one repository within a project."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    environment: str | None = Field(default=None, min_length=1, max_length=64)
     branch: str = "main"
-    automations: dict[str, AutomationConfig] = Field(min_length=1)
-
-    @field_validator("environment")
-    @classmethod
-    def validate_environment(cls, value: str | None) -> str | None:
-        """Validate an optional Cloud environment label."""
-
-        if value is not None and (value != value.strip() or not value.isprintable()):
-            raise ValueError("invalid Cloud environment label")
-
-        return value
 
     @field_validator("branch")
     @classmethod
@@ -191,6 +195,15 @@ class RepositoryConfig(BaseModel):
         """Validate the repository branch."""
 
         return validate_branch(value)
+
+
+class ProjectConfig(BaseModel):
+    """Group repositories and automations for one project."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    repositories: dict[str, RepositoryConfig] = Field(min_length=1)
+    automations: dict[str, AutomationConfig] = Field(min_length=1)
 
     @field_validator("automations")
     @classmethod
@@ -202,28 +215,32 @@ class RepositoryConfig(BaseModel):
         if invalid_name is not None:
             raise ValueError(f"invalid automation name: {invalid_name}")
 
+        for name in value:
+            try:
+                validate_branch(f"automation/{name}/run")
+            except ValueError as error:
+                raise ValueError(f"invalid automation name: {name}") from error
+
         return value
 
 
-class AutomationsConfig(BaseModel):
+class AutomationsConfig(BaseSettings):
     """Define the complete automation configuration."""
 
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = SettingsConfigDict(extra="forbid", strict=True)
 
     version: Literal[1]
-    repositories: dict[str, RepositoryConfig] = Field(min_length=1)
+    model: ModelConfig = Field(default_factory=ModelConfig)
+    projects: dict[str, ProjectConfig] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_repositories_and_names(self) -> Self:
-        """Validate repository keys and global automation-name uniqueness."""
+    def validate_project_automation_names(self) -> Self:
+        """Validate global automation-name uniqueness."""
 
         automation_names: set[str] = set()
 
-        for repository, config in self.repositories.items():
-            if repository != "self" and not REPOSITORY_PATTERN.fullmatch(repository):
-                raise ValueError(f"invalid repository identifier: {repository}")
-
-            for name in config.automations:
+        for project in self.projects.values():
+            for name in project.automations:
                 if name in automation_names:
                     raise ValueError(f"duplicate automation name: {name}")
 
@@ -233,21 +250,31 @@ class AutomationsConfig(BaseModel):
 
 
 class LoadedConfiguration(BaseModel):
-    """Pair a validated configuration with its repository root."""
+    """Pair a validated configuration with its repository resources."""
 
     model_config = ConfigDict(frozen=True)
 
     root: Path
+    prompts_directory: Path
     config: AutomationsConfig
 
 
+class ResolvedRepository(BaseModel):
+    """Represent one resolved repository and its base branch."""
+
+    model_config = ConfigDict(frozen=True)
+
+    repository: str
+    branch: str
+
+
 class AutomationTarget(BaseModel):
-    """Represent a resolved automation target."""
+    """Represent a resolved multi-repository automation target."""
 
     model_config = ConfigDict(frozen=True)
 
     name: str
-    repository: str
-    environment: str
-    branch: str
+    project: str
+    repositories: list[ResolvedRepository]
     automation: AutomationConfig
+    model: ModelConfig

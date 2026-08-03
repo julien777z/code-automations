@@ -15,8 +15,11 @@ jobs:
       - run: poetry run pytest
       - run: poetry run ruff check .
       - run: poetry run ruff format --check .
-      - run: poetry run cloud-automations validate
-      - run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
-      - run: |
-          actionlint_path="$(go env GOPATH)/bin/actionlint"
-          "$actionlint_path"
+      - uses: ./
+        with:
+          automations-file-path: example/automations.yaml
+          codex-environment-id: environment_test
+          mode: validate
+          prompts-directory-path: example/prompts
+          skills-directory-path: example/skills
+          codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}

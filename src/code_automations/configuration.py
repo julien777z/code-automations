@@ -1,0 +1,190 @@
+import logging
+import re
+import subprocess
+from pathlib import Path
+from typing import Final
+
+import yaml
+from agent_sync.errors import AgentSyncError
+from agent_sync.skill import load_skills
+from agent_sync.workspace import Workspace
+from pydantic import ValidationError
+from pydantic_settings import YamlConfigSettingsSource
+
+from code_automations.errors import ConfigurationError
+from code_automations.models.configuration import (
+    AutomationsConfig,
+    AutomationTarget,
+    LoadedConfiguration,
+    ResolvedRepository,
+)
+
+logger = logging.getLogger(__name__)
+
+GITHUB_ORIGIN_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"github\.com(?::|/)([A-Za-z0-9._-]+/[A-Za-z0-9._-]+?)(?:\.git)?$"
+)
+
+__all__: Final[tuple[str, ...]] = (
+    "find_target",
+    "load_configuration",
+    "read_prompt",
+    "resolve_self_repository",
+    "resolve_targets",
+)
+
+
+def read_prompt(directory: Path, reference: str) -> str:
+    """Read one validated Markdown automation prompt."""
+
+    base = directory.resolve()
+
+    filename = reference if reference.endswith(".md") else f"{reference}.md"
+    candidate = (base / filename).resolve()
+
+    if not candidate.is_relative_to(base):
+        raise ConfigurationError(f"prompt reference escapes its directory: {reference}")
+
+    if not candidate.is_file():
+        raise ConfigurationError(f"missing or non-regular prompt file: {reference}")
+
+    try:
+        content = candidate.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise ConfigurationError(f"prompt file is not UTF-8: {reference}") from error
+
+    if not content.strip():
+        raise ConfigurationError(f"prompt file is empty: {reference}")
+
+    return content.strip()
+
+
+def load_configuration(path: Path, prompts_directory: Path) -> LoadedConfiguration:
+    """Load and semantically validate an automation YAML file."""
+
+    try:
+        source = YamlConfigSettingsSource(AutomationsConfig, yaml_file=path)
+        config = AutomationsConfig.model_validate(source())
+    except (OSError, UnicodeDecodeError, ValidationError, yaml.YAMLError) as error:
+        raise ConfigurationError(str(error)) from error
+
+    resolved_prompts_directory = prompts_directory.resolve()
+    if not resolved_prompts_directory.is_dir():
+        raise ConfigurationError(f"prompt directory does not exist: {resolved_prompts_directory}")
+
+    root = path.resolve().parent
+
+    try:
+        skill_names = {skill.slug for skill in load_skills(Workspace(root=root))}
+    except (AgentSyncError, OSError, UnicodeDecodeError, yaml.YAMLError, ValidationError) as error:
+        raise ConfigurationError(str(error)) from error
+
+    loaded = LoadedConfiguration(
+        root=root,
+        prompts_directory=resolved_prompts_directory,
+        config=config,
+    )
+
+    for project in config.projects.values():
+        for automation in project.automations.values():
+            read_prompt(loaded.prompts_directory, automation.prompt)
+            for skill in automation.skills:
+                if skill not in skill_names:
+                    raise ConfigurationError(f"missing native skill: {skill}")
+
+    return loaded
+
+
+def resolve_self_repository(
+    loaded: LoadedConfiguration,
+    github_repository: str | None = None,
+) -> str | None:
+    """Resolve the reserved self repository when it is configured."""
+
+    if not any("self" in project.repositories for project in loaded.config.projects.values()):
+        return None
+
+    if github_repository is not None:
+        return github_repository
+
+    result = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=loaded.root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        raise ConfigurationError("self requires GITHUB_REPOSITORY or a GitHub origin remote")
+
+    match = GITHUB_ORIGIN_PATTERN.search(result.stdout.strip())
+
+    if match is None:
+        raise ConfigurationError("origin is not a supported GitHub repository URL")
+
+    return match.group(1)
+
+
+def resolve_targets(
+    loaded: LoadedConfiguration,
+    self_repository: str | None = None,
+) -> list[AutomationTarget]:
+    """Resolve every configured automation target."""
+
+    automation_targets: list[AutomationTarget] = []
+
+    for project_name, project in loaded.config.projects.items():
+        repositories: list[ResolvedRepository] = []
+        repository_names: set[str] = set()
+
+        for repository_key, repository in project.repositories.items():
+            if repository_key == "self" and self_repository is None:
+                raise ConfigurationError("self requires GITHUB_REPOSITORY or a GitHub origin remote")
+
+            repository_name = self_repository if repository_key == "self" else repository_key
+
+            if repository_name is None:
+                raise ConfigurationError("self requires a resolved repository")
+
+            normalized_repository_name = repository_name.casefold()
+
+            if normalized_repository_name in repository_names:
+                raise ConfigurationError(f"duplicate resolved repository: {repository_name}")
+
+            repository_names.add(normalized_repository_name)
+            repositories.append(ResolvedRepository(repository=repository_name, branch=repository.branch))
+
+        for name, automation in project.automations.items():
+            model = loaded.config.model.model_copy(
+                update=automation.model_override.model_dump(exclude_unset=True)
+                if automation.model_override is not None
+                else {},
+            )
+
+            automation_targets.append(
+                AutomationTarget(
+                    name=name,
+                    project=project_name,
+                    repositories=repositories,
+                    automation=automation,
+                    model=model,
+                )
+            )
+
+    return automation_targets
+
+
+def find_target(
+    loaded: LoadedConfiguration,
+    self_repository: str | None,
+    name: str,
+) -> AutomationTarget:
+    """Find an automation by its globally unique name."""
+
+    target = next((item for item in resolve_targets(loaded, self_repository) if item.name == name), None)
+
+    if target is None:
+        raise ConfigurationError(f"unknown automation: {name}")
+
+    return target

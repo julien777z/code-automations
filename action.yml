@@ -1,0 +1,111 @@
+name: Code Automations
+description: Validate and run multi-repository automations from a repository-owned YAML file.
+author: julien777z
+
+branding:
+  icon: play
+  color: blue
+
+inputs:
+  automations-file-path:
+    description: Path to the automation configuration relative to the checked-out repository.
+    required: true
+  prompts-directory-path:
+    description: Path to the prompt Markdown directory relative to the checked-out repository.
+    required: true
+  mode:
+    description: Operation to run — validate or dispatch.
+    required: false
+    default: dispatch
+  run-automation-name:
+    description: Automation name for manual dispatch. Empty dispatches scheduled automations.
+    required: false
+    default: ""
+  codex-auth-json:
+    description: Complete Codex authentication document required to run automations.
+    required: true
+  codex-environment-id:
+    description: Codex Cloud environment used for coordinating configured repositories.
+    required: true
+  github-token:
+    description: GitHub token used to clone repositories and publish pull requests.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Set Up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: ${{ github.action_path }}/.python-version
+    - name: Read Node Version
+      id: node-version
+      shell: bash
+      run: >-
+        python "$GITHUB_ACTION_PATH/.github/scripts/bootstrap.py" read-node-version
+        --action-path "$GITHUB_ACTION_PATH"
+        --github-output "$GITHUB_OUTPUT"
+    - name: Set Up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ steps.node-version.outputs.version }}
+    - name: Install Action Dependencies
+      shell: bash
+      run: >-
+        python "$GITHUB_ACTION_PATH/.github/scripts/bootstrap.py" install-dependencies
+        --action-path "$GITHUB_ACTION_PATH"
+    - name: Validate Action Inputs
+      shell: bash
+      env:
+        AUTOMATION_MODE: ${{ inputs.mode }}
+        AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
+        CODEX_ENVIRONMENT_ID: ${{ inputs.codex-environment-id }}
+        PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_REF: ${{ github.ref }}
+      run: poetry --directory "$GITHUB_ACTION_PATH" run python "$GITHUB_ACTION_PATH/.github/scripts/action.py" validate-inputs
+    - name: Validate Automation File
+      shell: bash
+      env:
+        AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
+        PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
+      run: >-
+        poetry --directory "$GITHUB_ACTION_PATH" run python -m code_automations
+        --config "$GITHUB_WORKSPACE/$AUTOMATIONS_FILE_PATH"
+        --prompts-directory "$GITHUB_WORKSPACE/$PROMPTS_DIRECTORY_PATH"
+        validate
+    - name: Set Up Automation Authentication
+      id: authentication
+      if: inputs.mode == 'dispatch'
+      shell: bash
+      env:
+        CODEX_AUTH_JSON: ${{ inputs.codex-auth-json }}
+      run: poetry --directory "$GITHUB_ACTION_PATH" run python "$GITHUB_ACTION_PATH/.github/scripts/action.py" setup-authentication
+    - name: Run Automations
+      if: inputs.mode == 'dispatch'
+      shell: bash
+      env:
+        AUTOMATIONS_FILE_PATH: ${{ inputs.automations-file-path }}
+        CODEX_ENVIRONMENT_ID: ${{ inputs.codex-environment-id }}
+        CODEX_HOME: ${{ steps.authentication.outputs.home }}
+        GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+        PROMPTS_DIRECTORY_PATH: ${{ inputs.prompts-directory-path }}
+        RUN_AUTOMATION: ${{ inputs.run-automation-name }}
+      run: poetry --directory "$GITHUB_ACTION_PATH" run python "$GITHUB_ACTION_PATH/.github/scripts/action.py" dispatch
+    - name: Persist Automation Authentication
+      if: always() && inputs.mode == 'dispatch' && steps.authentication.outcome == 'success'
+      shell: bash
+      env:
+        CODEX_HOME: ${{ steps.authentication.outputs.home }}
+        GH_TOKEN: ${{ inputs.github-token || github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: poetry --directory "$GITHUB_ACTION_PATH" run python "$GITHUB_ACTION_PATH/.github/scripts/action.py" persist-authentication
+    - name: Remove Automation Runtime
+      if: always() && inputs.mode == 'dispatch'
+      shell: bash
+      env:
+        AUTHENTICATION_HOME: ${{ steps.authentication.outputs.home }}
+      run: poetry --directory "$GITHUB_ACTION_PATH" run python "$GITHUB_ACTION_PATH/.github/scripts/action.py" cleanup-runtime

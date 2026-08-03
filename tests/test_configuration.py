@@ -1,270 +1,185 @@
+import json
 from pathlib import Path
 
 import pytest
 
-from cloud_automations.configuration import (
+from code_automations.configuration import (
+    find_target,
     load_configuration,
-    read_fragment,
-    schema_text,
-    validate_repository,
+    read_prompt,
+    resolve_targets,
 )
-from cloud_automations.errors import ConfigurationError
-from cloud_automations.rendering import render_target
-from cloud_automations.targets import find_target
+from code_automations.errors import ConfigurationError
+from code_automations.models.configuration import AutomationsConfig, ModelConfig
+from code_automations.rendering import render_target
 
 
 class TestConfiguration:
-    """Test automation configuration loading and validation."""
+    """Test configuration loading, schema, and prompt rendering."""
 
-    def test_valid_nested_configuration_renders_deterministically(self, automation_config_path: Path) -> None:
-        """Resolve nested fragments and preserve rendering order."""
+    def test_valid_configuration_renders_local_publication_task(
+        self,
+        automation_config_path: Path,
+        prompts_directory: Path,
+    ) -> None:
+        """Resolve repositories, prepared paths, and task instructions."""
 
-        loaded = load_configuration(automation_config_path)
+        loaded = load_configuration(automation_config_path, prompts_directory)
         target = find_target(loaded, "owner/repository", "hello-world")
+        rendered = render_target(
+            loaded,
+            target,
+            Path("/workspace"),
+            "owner/repository",
+        )
 
-        first = render_target(loaded, target)
-        second = render_target(loaded, target)
+        assert [repository.repository for repository in target.repositories] == [
+            "owner/repository",
+            "owner/secondary",
+        ]
+        assert target.model == ModelConfig(name="gpt-5.6-terra", reasoning_effort="high")
+        assert f"{loaded.root} (base branch: main)" in rendered
+        assert "/workspace/repositories/" in rendered
+        assert "Use the branch `automation/hello-world`" in rendered
+        assert "Do not merge any pull request" in rendered
+        assert "Configured native skills" in rendered
+        assert "example-skill" in rendered
+        assert "Be concise." not in rendered
+        assert "read and follow its root instruction file" in rendered
+        assert rendered.endswith("Say hello.\n")
 
-        assert first == second
-        assert first.index("# Automation metadata") < first.index("# Skill: examples/concise")
-        assert first.index("# Skill: examples/concise") < first.index("# Prompt")
-        assert "- Repository: owner/repository" in first
+    def test_root_model_applies_without_an_automation_override(self, scheduled_configuration) -> None:
+        """Use the root model for automations that do not override it."""
 
-    def test_explicit_repository_and_optional_fields_are_supported(
-        self, automation_config_path: Path
+        target = find_target(scheduled_configuration, "owner/repository", "scheduled")
+
+        assert target.model == ModelConfig(name="gpt-5.6-terra", reasoning_effort="low")
+
+    def test_global_agent_prompt_is_a_markdown_resource(self) -> None:
+        """Keep agent prompt prose out of application code."""
+
+        repository_root = Path(__file__).parents[1]
+        rendering_source = (repository_root / "src/code_automations/rendering.py").read_text(encoding="utf-8")
+        global_rule_path = repository_root / "src/code_automations/prompts/global.md"
+        global_rule = global_rule_path.read_text(encoding="utf-8")
+
+        assert "Do not merge any pull request" not in rendering_source
+        assert "Do not merge any pull request" in global_rule
+
+    def test_legacy_automation_model_is_rejected(
+        self,
+        automation_config_path: Path,
+        prompts_directory: Path,
     ) -> None:
-        """Load an explicit repository with environment, branch, attempts, and schedule fields."""
+        """Require the explicit per-automation override field name."""
 
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
-            configuration.replace("self:", "owner/repository:")
-            .replace("branch: main", "environment: Build Runner\n    branch: release/next")
-            .replace(
-                "prompt: examples/hello-world",
-                "prompt: examples/hello-world\n"
-                "        attempts: 4\n"
-                "        schedule:\n"
-                "          cron: '17 * * * *'\n"
-                "          timezone: America/Los_Angeles",
-            ),
+            configuration.replace("        model_override:", "        model:"),
             encoding="utf-8",
         )
 
-        loaded = load_configuration(automation_config_path)
-        target = find_target(loaded, "unused/self", "hello-world")
+        with pytest.raises(ConfigurationError, match="Extra inputs are not permitted"):
+            load_configuration(automation_config_path, prompts_directory)
 
-        assert target.repository == "owner/repository"
-        assert target.environment == "Build Runner"
-        assert target.branch == "release/next"
-        assert target.automation.attempts == 4
-
-    def test_missing_fragment_is_rejected(self, automation_config_path: Path) -> None:
-        """Reject a missing prompt or skill file."""
-
-        (automation_config_path.parent / "skills/examples/concise.md").unlink()
-
-        with pytest.raises(ConfigurationError, match="missing or non-regular"):
-            load_configuration(automation_config_path)
-
-    @pytest.mark.parametrize(
-        "reference",
-        ["../secret", "foo/../secret", "/secret", "foo\\bar", "foo/bar.md", "foo//bar"],
-    )
-    def test_unsafe_references_are_rejected(self, automation_config_path: Path, reference: str) -> None:
-        """Reject traversal, absolute, backslash, suffix, and empty path segments."""
-
-        configuration = automation_config_path.read_text(encoding="utf-8")
-        automation_config_path.write_text(
-            configuration.replace("examples/hello-world", reference),
-            encoding="utf-8",
-        )
-
-        with pytest.raises(ConfigurationError):
-            load_configuration(automation_config_path)
-
-    def test_symlink_escape_is_rejected(self, automation_config_path: Path) -> None:
-        """Reject a reference whose symlink resolves outside its fragment directory."""
-
-        root = automation_config_path.parent
-        outside = root / "outside.md"
-        outside.write_text("External.\n", encoding="utf-8")
-        link = root / "prompts/examples/link.md"
-        link.symlink_to(outside)
-
-        configuration = automation_config_path.read_text(encoding="utf-8")
-        automation_config_path.write_text(
-            configuration.replace("examples/hello-world", "examples/link"),
-            encoding="utf-8",
-        )
-
-        with pytest.raises(ConfigurationError, match="escapes"):
-            load_configuration(automation_config_path)
-
-    def test_fragment_directory_symlink_escape_is_rejected(self, automation_config_path: Path) -> None:
-        """Reject a prompt directory that resolves outside the repository root."""
-
-        root = automation_config_path.parent
-        external = root.parent / f"{root.name}-external"
-        external_examples = external / "examples"
-        external_examples.mkdir(parents=True)
-        (external_examples / "hello-world.md").write_text("External.\n", encoding="utf-8")
-
-        prompt = root / "prompts/examples/hello-world.md"
-        prompt.unlink()
-        prompt.parent.rmdir()
-        (root / "prompts").rmdir()
-        (root / "prompts").symlink_to(external, target_is_directory=True)
-
-        with pytest.raises(ConfigurationError, match="directory escapes"):
-            load_configuration(automation_config_path)
-
-    def test_non_utf8_empty_and_non_regular_fragments_are_rejected(self, tmp_path: Path) -> None:
-        """Reject invalid fragment content and file types."""
-
-        directory = tmp_path / "prompts"
-        directory.mkdir()
-        invalid = directory / "invalid.md"
-        invalid.write_bytes(b"\xff")
-
-        with pytest.raises(ConfigurationError, match="not UTF-8"):
-            read_fragment(tmp_path, "prompts", "invalid")
-
-        invalid.write_text("  \n", encoding="utf-8")
-
-        with pytest.raises(ConfigurationError, match="empty"):
-            read_fragment(tmp_path, "prompts", "invalid")
-
-        invalid.unlink()
-        invalid.mkdir()
-
-        with pytest.raises(ConfigurationError, match="non-regular"):
-            read_fragment(tmp_path, "prompts", "invalid")
-
-    def test_malformed_yaml_is_rejected(self, tmp_path: Path) -> None:
-        """Reject malformed YAML."""
-
-        config_path = tmp_path / "automations.yaml"
-        config_path.write_text("repositories: [\n", encoding="utf-8")
-
-        with pytest.raises(ConfigurationError, match="unable to parse"):
-            load_configuration(config_path)
-
-    def test_unknown_fields_are_rejected(self, automation_config_path: Path) -> None:
-        """Reject fields outside the strict schema."""
-
-        configuration = automation_config_path.read_text(encoding="utf-8")
-        automation_config_path.write_text(
-            configuration.replace("    branch", "    unexpected: true\n    branch"),
-            encoding="utf-8",
-        )
-
-        with pytest.raises(ConfigurationError, match="extra_forbidden"):
-            load_configuration(automation_config_path)
-
-    def test_duplicate_global_names_are_rejected(self, automation_config_path: Path) -> None:
-        """Reject automation names repeated across repositories."""
-
-        configuration = automation_config_path.read_text(encoding="utf-8")
-        automation_config_path.write_text(
-            configuration
-            + """  owner/other:
-    automations:
-      hello-world:
-        prompt: examples/hello-world
-""",
-            encoding="utf-8",
-        )
-
-        with pytest.raises(ConfigurationError, match="duplicate automation name"):
-            load_configuration(automation_config_path)
-
-    def test_duplicate_yaml_mapping_keys_are_rejected(self, automation_config_path: Path) -> None:
-        """Reject keys that PyYAML would otherwise silently overwrite."""
-
-        automation_config_path.write_text(
-            """version: 1
-repositories:
-  self:
-    automations:
-      hello-world:
-        prompt: examples/hello-world
-      hello-world:
-        prompt: examples/hello-world
-""",
-            encoding="utf-8",
-        )
-
-        with pytest.raises(ConfigurationError, match="duplicate YAML key"):
-            load_configuration(automation_config_path)
-
-    @pytest.mark.parametrize(
-        "old,new",
-        [
-            ("self:", "invalid:"),
-            ("self:", "owner_name/repository:"),
-            ("self:", "owner.name/repository:"),
-            ("self:", "owner-/repository:"),
-            ("self:", "owner--name/repository:"),
-            ("branch: main", "branch: bad branch"),
-            ("branch: main", "branch: foo/.hidden"),
-            ("branch: main", "branch: foo.lock/bar"),
-            ("branch: main", "environment: ' bad environment'\n    branch: main"),
-            ("prompt: examples/hello-world", "attempts: 5\n        prompt: examples/hello-world"),
-            (
-                "prompt: examples/hello-world",
-                "schedule:\n"
-                "          cron: invalid\n"
-                "          timezone: UTC\n"
-                "        prompt: examples/hello-world",
-            ),
-            (
-                "prompt: examples/hello-world",
-                "schedule:\n"
-                "          cron: '0 9 * * *'\n"
-                "          timezone: Mars/Base\n"
-                "        prompt: examples/hello-world",
-            ),
-        ],
-    )
-    def test_invalid_semantic_values_are_rejected(
-        self, automation_config_path: Path, old: str, new: str
+    def test_duplicate_resolved_repositories_are_rejected(
+        self,
+        automation_config_path: Path,
+        prompts_directory: Path,
     ) -> None:
-        """Reject invalid repository, branch, environment, attempts, cron, and timezone values."""
+        """Reject a repository repeated through self."""
 
         configuration = automation_config_path.read_text(encoding="utf-8")
-        automation_config_path.write_text(configuration.replace(old, new), encoding="utf-8")
+        automation_config_path.write_text(
+            configuration.replace("owner/secondary:", "owner/repository:"),
+            encoding="utf-8",
+        )
 
-        with pytest.raises(ConfigurationError):
-            load_configuration(automation_config_path)
+        loaded = load_configuration(automation_config_path, prompts_directory)
 
-    @pytest.mark.parametrize("cron", ["0 0 L * *", "0 0 ? * *", "0 0 * * 5#3", "*/61 * * * *"])
-    def test_croniter_extensions_are_rejected(self, automation_config_path: Path, cron: str) -> None:
-        """Reject non-POSIX cron extensions accepted by croniter."""
+        with pytest.raises(ConfigurationError, match="duplicate resolved repository"):
+            resolve_targets(loaded, "owner/repository")
+
+    def test_repository_names_are_deferred_to_github(
+        self,
+        automation_config_path: Path,
+        prompts_directory: Path,
+    ) -> None:
+        """Leave repository identifier validation to GitHub."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        automation_config_path.write_text(
+            configuration.replace("owner/secondary:", "not-a-github-repository:"),
+            encoding="utf-8",
+        )
+
+        loaded = load_configuration(automation_config_path, prompts_directory)
+        target = find_target(loaded, "owner/repository", "hello-world")
+        assert target.repositories[1].repository == "not-a-github-repository"
+
+    def test_merge_configuration_is_rejected(
+        self,
+        automation_config_path: Path,
+        prompts_directory: Path,
+    ) -> None:
+        """Keep pull request merging outside consumer configuration."""
 
         configuration = automation_config_path.read_text(encoding="utf-8")
         automation_config_path.write_text(
             configuration.replace(
-                "prompt: examples/hello-world",
-                "schedule:\n"
-                f"          cron: '{cron}'\n"
-                "          timezone: UTC\n"
-                "        prompt: examples/hello-world",
+                "        prompt: hello-world",
+                "        prompt: hello-world\n        merge:\n          workflows:\n            - Run Tests",
             ),
             encoding="utf-8",
         )
 
+        with pytest.raises(ConfigurationError, match="Extra inputs are not permitted"):
+            load_configuration(automation_config_path, prompts_directory)
+
+    @pytest.mark.parametrize("reference", ["../secret", "/secret", "foo\\bar", "foo//bar"])
+    def test_unsafe_references_are_rejected(
+        self,
+        automation_config_path: Path,
+        prompts_directory: Path,
+        reference: str,
+    ) -> None:
+        """Reject unsafe prompt and skill references."""
+
+        configuration = automation_config_path.read_text(encoding="utf-8")
+        automation_config_path.write_text(
+            configuration.replace("prompt: hello-world", f"prompt: {reference}"),
+            encoding="utf-8",
+        )
+
         with pytest.raises(ConfigurationError):
-            load_configuration(automation_config_path)
+            load_configuration(automation_config_path, prompts_directory)
 
-    def test_stale_schema_is_rejected(self, automation_config_path: Path) -> None:
-        """Reject a committed schema that differs from the generated model schema."""
+    def test_missing_native_skill_is_rejected(
+        self,
+        automation_config_path: Path,
+        prompts_directory: Path,
+    ) -> None:
+        """Reject a configured skill absent from the canonical agent directory."""
 
-        schema_path = automation_config_path.parent / "automations.schema.json"
-        schema_path.write_text("{}\n", encoding="utf-8")
+        (automation_config_path.parent / ".agents/skills/example-skill/SKILL.md").unlink()
 
-        with pytest.raises(ConfigurationError, match="stale generated schema"):
-            validate_repository(automation_config_path, schema_path)
+        with pytest.raises(ConfigurationError, match="Missing SKILL.md"):
+            load_configuration(automation_config_path, prompts_directory)
 
-        schema_path.write_text(schema_text(), encoding="utf-8")
+    def test_non_utf8_fragment_is_rejected(self, tmp_path: Path) -> None:
+        """Reject fragment content that cannot be decoded."""
 
-        validate_repository(automation_config_path, schema_path)
+        directory = tmp_path / "prompts"
+        directory.mkdir()
+        (directory / "invalid.md").write_bytes(b"\xff")
+
+        with pytest.raises(ConfigurationError, match="not UTF-8"):
+            read_prompt(directory, "invalid")
+
+    def test_tracked_schema_matches_configuration_model(self) -> None:
+        """Keep the public JSON schema synchronized with Pydantic."""
+
+        schema_path = Path(__file__).parents[1] / "automations.schema.json"
+        tracked = json.loads(schema_path.read_text(encoding="utf-8"))
+
+        assert tracked == AutomationsConfig.model_json_schema()
