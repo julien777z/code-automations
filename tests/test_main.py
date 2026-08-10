@@ -68,14 +68,9 @@ class TestRuntime:
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repository")
         monkeypatch.setattr(
             "code_automations.__main__.submit_target",
-            lambda loaded,
-            target,
-            environment,
-            branch,
-            workspace,
-            self_repository,
-            timeout,
-            summary_path: submitted.append(target.name),
+            lambda loaded, target, environment, branch, workspace, self_repository, timeout, summary_path: submitted.append(
+                target.name
+            ),
         )
 
         result = run(

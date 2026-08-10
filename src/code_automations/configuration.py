@@ -157,9 +157,11 @@ def resolve_targets(
 
         for name, automation in project.automations.items():
             model = loaded.config.model.model_copy(
-                update=automation.model_override.model_dump(exclude_unset=True)
-                if automation.model_override is not None
-                else {},
+                update=(
+                    automation.model_override.model_dump(exclude_unset=True)
+                    if automation.model_override is not None
+                    else {}
+                ),
             )
 
             automation_targets.append(
