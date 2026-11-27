@@ -20,7 +20,7 @@ def install_dependencies(action_path: Path) -> None:
     """Install the action runtime dependencies."""
 
     subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "poetry==2.2.0"],
+        [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "poetry"],
         check=True,
     )
     subprocess.run(["poetry", "--directory", action_path, "install", "--only", "main"], check=True)
