@@ -6,10 +6,6 @@ inputs:
     description: Python version to use
     required: false
     default: "3.13"
-  poetry-version:
-    description: Poetry version to install
-    required: false
-    default: "2.2.0"
 runs:
   using: composite
   steps:
@@ -20,8 +16,11 @@ runs:
     - name: Install Poetry
       shell: bash
       run: |
-        pipx install poetry==${{ inputs.poetry-version }}
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        python -m venv "$RUNNER_TEMP/poetry"
+        "$RUNNER_TEMP/poetry/bin/python" -m pip install --disable-pip-version-check poetry
+        mkdir -p "$RUNNER_TEMP/poetry-bin"
+        ln -sf "$RUNNER_TEMP/poetry/bin/poetry" "$RUNNER_TEMP/poetry-bin/poetry"
+        echo "$RUNNER_TEMP/poetry-bin" >> "$GITHUB_PATH"
     - name: Show Tool Versions
       shell: bash
       run: |
